@@ -30,6 +30,7 @@
 #define MEMORYSUBSPACEFLAT_HPP_
 
 #include "MemorySubSpaceUniSpace.hpp"
+#include "LightweightNonReentrantLock.hpp"
 
 class MM_EnvironmentBase;
 class MM_MemoryPool;
@@ -44,6 +45,7 @@ class MM_ObjectAllocationInterface;
  */
 class MM_MemorySubSpaceFlat : public MM_MemorySubSpaceUniSpace
 {
+	MM_LightweightNonReentrantLock _resizingLock;
 protected:
 	bool initialize(MM_EnvironmentBase *env);
 	
@@ -63,6 +65,9 @@ public:
 	virtual MM_AllocationFailureStats *getAllocationFailureStats();
 
 	virtual void *allocateObject(MM_EnvironmentBase *env, MM_AllocateDescription *allocDescription, MM_MemorySubSpace *baseSubSpace, MM_MemorySubSpace *previousSubSpace, bool shouldCollectOnFailure);
+
+	virtual void tearDown(MM_EnvironmentBase* env);
+
 #if defined(OMR_GC_ARRAYLETS)
 	virtual void *allocateArrayletLeaf(MM_EnvironmentBase *env, MM_AllocateDescription *allocDescription, MM_MemorySubSpace *baseSubSpace, MM_MemorySubSpace *previousSubSpace, bool shouldCollectOnFailure);
 #endif /* OMR_GC_ARRAYLETS */
@@ -86,6 +91,10 @@ public:
 	virtual bool expanded(MM_EnvironmentBase *env, MM_PhysicalSubArena *subArena, MM_HeapRegionDescriptor *region, bool canCoalesce);
 	virtual bool expanded(MM_EnvironmentBase *env, MM_PhysicalSubArena *subArena, uintptr_t size, void *lowAddress, void *highAddress, bool canCoalesce);
 	virtual uintptr_t getAvailableContractionSize(MM_EnvironmentBase *env, MM_AllocateDescription *allocDescription);	
+
+	virtual void acquireResizingLock();
+	virtual void releaseResizingLock();
+	
 #if defined(OMR_GC_IDLE_HEAP_MANAGER)
 	virtual uintptr_t releaseFreeMemoryPages(MM_EnvironmentBase* env);
 #endif

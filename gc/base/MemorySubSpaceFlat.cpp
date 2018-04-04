@@ -291,6 +291,8 @@ MM_MemorySubSpaceFlat::newInstance(
 bool
 MM_MemorySubSpaceFlat::initialize(MM_EnvironmentBase* env)
 {
+	MM_GCExtensionsBase *ext = env->getExtensions();
+
 	if (!MM_MemorySubSpace::initialize(env)) {
 		return false;
 	}
@@ -310,7 +312,19 @@ MM_MemorySubSpaceFlat::initialize(MM_EnvironmentBase* env)
 	}
 #endif /* OMR_GC_MODRON_CONCURRENT_MARK */
 
+	if (!_resizingLock.initialize(env, &ext->lnrlOptions, "MM_MemorySubSpaceFlat:_resizingLock")) {
+		return false;
+	}
+
 	return true;
+}
+
+void
+MM_MemorySubSpaceFlat::tearDown(MM_EnvironmentBase* env)
+{
+	_resizingLock.tearDown();
+
+	MM_MemorySubSpace::tearDown(env);
 }
 
 /**
@@ -405,7 +419,10 @@ MM_MemorySubSpaceFlat::getAvailableContractionSize(MM_EnvironmentBase* env, MM_A
  */
 uintptr_t
 MM_MemorySubSpaceFlat::collectorExpand(MM_EnvironmentBase* env, MM_Collector* requestCollector, MM_AllocateDescription* allocDescription)
-{
+{	
+	/* Lock to ensure that card cleaning doesn't run during expansion. If card cleaning is done in the
+	 * middle of an expansion then we are left in an inconsistent state for determining cleaning ranges.*/
+	_resizingLock.acquire();
 	MM_GCExtensionsBase* extensions = env->getExtensions();
 	uintptr_t expansionAmount;
 	uintptr_t expandSize;
@@ -420,6 +437,7 @@ MM_MemorySubSpaceFlat::collectorExpand(MM_EnvironmentBase* env, MM_Collector* re
 	if (!requestCollector->canCollectorExpand(env, this, expandSize)) {
 		/* Not allowed */
 		Trc_MM_MemorySubSpaceFlat_collectorExpand_Exit2(env->getLanguageVMThread());
+		_resizingLock.release();
 		return 0;
 	}
 
@@ -432,7 +450,17 @@ MM_MemorySubSpaceFlat::collectorExpand(MM_EnvironmentBase* env, MM_Collector* re
 	requestCollector->collectorExpanded(env, this, expansionAmount);
 
 	Trc_MM_MemorySubSpaceFlat_collectorExpand_Exit3(env->getLanguageVMThread(), expansionAmount);
+	_resizingLock.release();
+
 	return expansionAmount;
+}
+
+void MM_MemorySubSpaceFlat::acquireResizingLock(){
+	_resizingLock.acquire();
+}
+
+void MM_MemorySubSpaceFlat::releaseResizingLock(){
+	_resizingLock.release();
 }
 
 #if defined(OMR_GC_IDLE_HEAP_MANAGER)
