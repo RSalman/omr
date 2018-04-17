@@ -202,13 +202,8 @@ MM_PhysicalSubArenaVirtualMemoryFlat::expandNoCheck(MM_EnvironmentBase *env, uin
 	if (_highAddress != highExpandAddress) {
 		/* the area has been expanded.  Update internal values */
 		_highAddress = highExpandAddress;
-		/* Reconstruct the region at its new size */
-		getHeapRegionManager()->resizeAuxillaryRegion(env, _region, _lowAddress, _highAddress);
-		Assert_MM_true(NULL != _region);
-
 		/* Update the owning subspace */
 		_subSpace->expanded(env, this, expandSize, lowExpandAddress, highExpandAddress, true);
-		_subSpace->heapReconfigured(env);
 	}
 
 	Assert_MM_true(_lowAddress == _region->getLowAddress());
@@ -217,6 +212,11 @@ MM_PhysicalSubArenaVirtualMemoryFlat::expandNoCheck(MM_EnvironmentBase *env, uin
 	return expandSize;
 }
 
+void
+MM_PhysicalSubArenaVirtualMemoryFlat::resizeRegion(MM_EnvironmentBase *env){
+	getHeapRegionManager()->resizeAuxillaryRegion(env, _region, _lowAddress, _highAddress);
+	Assert_MM_true(NULL != _region);
+}
 /**
  * Determine whether the sub arena is allowed to contract
  *
