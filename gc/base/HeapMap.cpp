@@ -135,6 +135,14 @@ MM_HeapMap::heapAddRange(MM_EnvironmentBase *env, uintptr_t size, void *lowAddre
 		uintptr_t heapOffsetHigh = _extensions->heap->calculateOffsetFromHeapBase(highAddress);
 		uintptr_t heapMapCommitOffset = convertHeapIndexToHeapMapIndex(env, heapOffsetLow, sizeof(uintptr_t));
 		uintptr_t heapMapCommitSize = convertHeapIndexToHeapMapIndex(env, heapOffsetHigh, sizeof(uintptr_t)) - heapMapCommitOffset;
+
+		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+		omrtty_printf("{_PRINT_ MM_HeapMap::heapAddRange(): [heapOffsetLow %zu] \t [heapOffsetHigh %zu] \t [heapMapCommitOffset %zu] \t [heapMapCommitSize %zu] }\n", heapOffsetLow,
+				heapOffsetHigh,
+				heapMapCommitOffset,
+				heapMapCommitSize);
+
+
 	
 		MM_MemoryManager *memoryManager = _extensions->memoryManager;
 		commited = memoryManager->commitMemory(&_heapMapMemoryHandle, (void *)(((uintptr_t)_heapMapBits) + heapMapCommitOffset), heapMapCommitSize);

@@ -64,8 +64,6 @@ public:
 	virtual bool canContract(MM_EnvironmentBase *env);
 
 	virtual uintptr_t getAvailableContractionSize(MM_EnvironmentBase *env, MM_MemorySubSpace *memorySubSpace, MM_AllocateDescription *allocDescription);
-	
-	void resizeRegion(MM_EnvironmentBase *env);
 
 	MM_PhysicalSubArenaVirtualMemoryFlat(MM_Heap *heap) :
 		MM_PhysicalSubArenaVirtualMemory(heap),

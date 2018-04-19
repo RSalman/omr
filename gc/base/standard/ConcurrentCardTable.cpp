@@ -356,6 +356,7 @@ MM_ConcurrentCardTable::heapAddRange(MM_EnvironmentBase *env, MM_MemorySubSpace 
 			 * concurrently collectable subspace
 			 */
 			result = allocateTLHMarkMapEntriesForHeapRange(env, subspace, size, lowAddress, highAddress);
+			//TODO (SALMAN):
 			_cardTableReconfigured = true;
 		}
 	}

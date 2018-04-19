@@ -207,7 +207,7 @@ public:
 	 *
 	 * @return the dark matter, measured in bytes, in the range
 	 */
-	uintptr_t performSamplingCalculations(MM_ParallelSweepChunk *sweepChunk, uintptr_t* markMapCurrent, uintptr_t* heapSlotFreeCurrent);
+	uintptr_t performSamplingCalculations(MM_EnvironmentBase* env, MM_ParallelSweepChunk *sweepChunk, uintptr_t* markMapCurrent, uintptr_t* heapSlotFreeCurrent);
 
 	virtual bool isSweepCompleted(MM_EnvironmentBase* env) { return true; }
 

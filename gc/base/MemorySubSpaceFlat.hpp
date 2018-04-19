@@ -48,9 +48,7 @@ protected:
 	bool initialize(MM_EnvironmentBase *env);
 	
 	MM_MemorySubSpace *_memorySubSpace;
-	
-	MMINLINE void setMemorySubSpace(MM_MemorySubSpace *memorySubSpace) { _memorySubSpace = memorySubSpace; };
-	MMINLINE MM_MemorySubSpace *getMemorySubSpace() { return _memorySubSpace; };
+		
 	virtual void *allocationRequestFailed(MM_EnvironmentBase *env, MM_AllocateDescription *allocateDescription, AllocationType allocationType, MM_ObjectAllocationInterface *objectAllocationInterface, MM_MemorySubSpace *baseSubSpace, MM_MemorySubSpace *previousSubSpace);
 
 public:

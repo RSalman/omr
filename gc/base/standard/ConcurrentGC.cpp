@@ -3261,6 +3261,9 @@ MM_ConcurrentGC::heapAddRange(MM_EnvironmentBase *env, MM_MemorySubSpace *subspa
 			 * set the bits on to stop tracing INTO this area during concurrent
 			 * mark cycle.
 			 */
+
+			//omrthread_sleep(10); //*TEMP* Added to reproduc bug
+
 			if (subspace->isConcurrentCollectable()) {
 				_markingScheme->setMarkBitsInRange(env, lowAddress, highAddress, true);
 				clearCards = true;

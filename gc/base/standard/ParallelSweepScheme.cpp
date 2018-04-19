@@ -399,7 +399,7 @@ MM_ParallelSweepScheme::sweepMarkMapTail(
 }
 
 uintptr_t
-MM_ParallelSweepScheme::performSamplingCalculations(MM_ParallelSweepChunk *sweepChunk, uintptr_t* markMapCurrent, uintptr_t* heapSlotFreeCurrent)
+MM_ParallelSweepScheme::performSamplingCalculations(MM_EnvironmentBase *env, MM_ParallelSweepChunk *sweepChunk, uintptr_t* markMapCurrent, uintptr_t* heapSlotFreeCurrent)
 {
 	const uintptr_t minimumFreeEntrySize = sweepChunk->memoryPool->getMinimumFreeEntrySize();
 	uintptr_t darkMatter = 0;
@@ -415,8 +415,15 @@ MM_ParallelSweepScheme::performSamplingCalculations(MM_ParallelSweepChunk *sweep
 	uintptr_t prevObjectSize = _extensions->objectModel.getConsumedSizeInBytesWithHeader(prevObject);
 
 	omrobjectptr_t object = NULL;
+
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 	while (NULL != (object = markedObjectIterator.nextObject())) {
 		uintptr_t holeSize = (uintptr_t)object - ((uintptr_t)prevObject + prevObjectSize);
+
+		if(holeSize >= minimumFreeEntrySize){
+			omrtty_printf("_PRINT_ {MM_ParallelSweepScheme::performSamplingCalculations(): [holeSize %zu] [prevObjectSize %zu] }\n", holeSize, prevObjectSize);
+		}
+
 		Assert_MM_true(holeSize < minimumFreeEntrySize);
 		darkMatter += holeSize;
 		prevObject = object;
@@ -520,7 +527,7 @@ MM_ParallelSweepScheme::sweepChunk(MM_EnvironmentBase *env, MM_ParallelSweepChun
 		if (0 == heapSlotFreeCount) {
 			darkMatterCandidates += 1;
 			if (0 == (darkMatterCandidates % darkMatterSampleRate)) {
-				darkMatterBytes += performSamplingCalculations(sweepChunk, markMapCurrent, heapSlotFreeCurrent);
+				darkMatterBytes += performSamplingCalculations(env, sweepChunk, markMapCurrent, heapSlotFreeCurrent);
 				darkMatterSamples += 1;
 			}
 		} else {

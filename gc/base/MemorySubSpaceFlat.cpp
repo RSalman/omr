@@ -36,7 +36,6 @@
 #include "MemorySpace.hpp"
 #include "MemorySubSpace.hpp"
 #include "PhysicalSubArena.hpp"
-#include "PhysicalSubArenaVirtualMemoryFlat.hpp"
 
 /****************************************
  * Allocation
@@ -380,19 +379,7 @@ MM_MemorySubSpaceFlat::expanded(MM_EnvironmentBase* env, MM_PhysicalSubArena* su
 bool
 MM_MemorySubSpaceFlat::expanded(MM_EnvironmentBase* env, MM_PhysicalSubArena* subArena, uintptr_t size, void* lowAddress, void* highAddress, bool canCoalesce)
 {
-	bool result = _memorySubSpace->heapAddRange(env, _memorySubSpace, size, lowAddress, highAddress);
-
-	/* Reconstruct the region at its new size */
-	((MM_PhysicalSubArenaVirtualMemoryFlat *)subArena)->resizeRegion(env);
-
-	if(result){
-		_memorySubSpace->addExistingMemory(env, subArena, size, lowAddress, highAddress, canCoalesce);
-	}
-
-	heapReconfigured(env);
-
-	/* Inform the child */
-	return result;
+	return _memorySubSpace->expanded(env, subArena, size, lowAddress, highAddress, canCoalesce);
 }
 
 /**
