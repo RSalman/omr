@@ -31,6 +31,7 @@
 MM_HeapRegionDescriptor::MM_HeapRegionDescriptor(MM_EnvironmentBase *env, void *lowAddress, void *highAddress)
 	: _regionsInSpan(0)
 	, _heapRegionDescriptorExtension(NULL)
+	, printDebug(false)
 	, _lowAddress(lowAddress)
 	, _highAddress(highAddress)
 	, _previousRegion(NULL)
@@ -44,6 +45,7 @@ MM_HeapRegionDescriptor::MM_HeapRegionDescriptor(MM_EnvironmentBase *env, void *
 	, _memoryPool(NULL)
 	, _numaNode(0)
 	, _regionProperties(MM_HeapRegionDescriptor::MANAGED)
+
 {
 	_typeId = __FUNCTION__;
 	_headOfSpan = this;

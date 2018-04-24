@@ -76,6 +76,8 @@ public:
 		ALL = 0xFFFFFFFF
 		,MANAGED = 1
 	};
+	
+	bool printDebug;
 
 protected:
 
@@ -151,7 +153,7 @@ public:
 	 * @return the first address beyond the end of the region
 	 */
 	void*
-	getHighAddress() const
+	getHighAddress(bool allow = true) const
 	{
 		void *result = NULL;
 		if (0 == _regionsInSpan) {
@@ -165,6 +167,11 @@ public:
 		/* Note that we can't assert that this is the same high address as our root backing since, when a spanning
 		 * region is being released, a root backing becomes temporarily out of sync with a descriptor built on it
 		 */
+		 
+		 if(printDebug && allow){		 
+		 	Assert_MM_unreachable();
+		 }	
+		 
 		return result;
 	}
 
@@ -174,9 +181,9 @@ public:
 	 * @return true if address is within the receiver, false otherwise
 	 */
 	bool
-	isAddressInRegion(const void* address)
+	isAddressInRegion(const void* address, bool allow = true)
 	{
-		return (address >= getLowAddress()) && (address < getHighAddress());
+		return (address >= getLowAddress()) && (address < getHighAddress(allow));
 	}
 
 	/**
@@ -205,9 +212,9 @@ public:
 	 * @return The number of contiguous bytes represented by the receiver
 	 */
 	uintptr_t
-	getSize() const
+	getSize(bool allow = true) const
 	{
-		return (uintptr_t)getHighAddress() - (uintptr_t)getLowAddress();
+		return (uintptr_t)getHighAddress(allow) - (uintptr_t)getLowAddress();
 	}
 	
 	void

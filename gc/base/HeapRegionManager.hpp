@@ -293,13 +293,13 @@ public:
 	 * @param heapAddress - the address whose region we are trying to find
 	 * @return the region descriptor for the specified address 
 	 */
-	MMINLINE MM_HeapRegionDescriptor* regionDescriptorForAddress(const void* heapAddress)
+	MMINLINE MM_HeapRegionDescriptor* regionDescriptorForAddress(const void* heapAddress, bool allow = true)
 	{
 		MM_HeapRegionDescriptor* result = NULL;
 		if ((heapAddress >= _lowTableEdge) && (heapAddress < _highTableEdge)) {
 			result = tableDescriptorForAddress(heapAddress);
 		} else {
-			result = auxillaryDescriptorForAddress(heapAddress);
+			result = auxillaryDescriptorForAddress(heapAddress, allow);
 		}
 
 		return result;
@@ -311,7 +311,7 @@ public:
 	void reassociateRegionWithSubSpace(MM_EnvironmentBase* env, MM_HeapRegionDescriptor* region, MM_MemorySubSpace* subSpace);
 
 
-	MM_HeapRegionDescriptor* auxillaryDescriptorForAddress(const void* address);
+	MM_HeapRegionDescriptor* auxillaryDescriptorForAddress(const void* address, bool allow = true);
 	MMINLINE void resizeAuxillaryRegion(MM_EnvironmentBase* env, MM_HeapRegionDescriptor* region, void* lowAddress, void* highAddress)
 	{
 		writeLock();

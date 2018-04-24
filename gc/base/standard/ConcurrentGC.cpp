@@ -816,10 +816,12 @@ MM_ConcurrentGC::interpolateInRange(float val1, float val8, float val10, uintptr
  * collectable. All associated cards in card table will be set to clean (0x00).
  */
 void
-MM_ConcurrentGC::determineInitWork(MM_EnvironmentBase *env)
+MM_ConcurrentGC::determineInitWork(MM_EnvironmentBase *env, void* highAddress)
 {
 	bool initDone= false;
 	uintptr_t initWork;
+
+	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
 
 	Trc_MM_ConcurrentGC_determineInitWork_Entry(env->getLanguageVMThread());
 	
@@ -834,16 +836,33 @@ MM_ConcurrentGC::determineInitWork(MM_EnvironmentBase *env)
 		GC_HeapRegionIterator regionIterator(regionManager);
 
 		while(NULL != (region = regionIterator.nextRegion())) {
-			if (0 == region->getSize()) {
-				continue;
-			}
+
+
 			/* Get reference to owning subspace */
 			MM_MemorySubSpace *subspace = region->getSubSpace();
+
+			omrtty_printf("ConcurrantGC::determineInitWork calling subspace: %s \n", subspace->getParent()->getName());
+
+			//int SStype = strcmp(subspace->getParent()->getName(), "Flat" );
+			//bool useLocalHigh = SStype == 0 && highAddress != NULL;
+
+			//if(highAddress != NULL)
+			//	omrtty_printf("{_PRINT_ MM_ConcurrentGC::determineInitWork(): [subspace->getName(): %s] [highAddress %p] }\n", subspace->getParent()->getName(), highAddress);
+
+
+			if (0 == region->getSize(false) /*&& !useLocalHigh*/) {
+				continue;
+			}
+
+			//if(useLocalHigh && ((uintptr_t)highAddress - ((uintptr_t) (region->getLowAddress())) == 0))
+			///	continue;
+
 
 			/* If space in initRanges array add it */
 			if (_numInitRanges < _numPhysicalInitRanges) {
 				_initRanges[i].base = region->getLowAddress();
-				_initRanges[i].top = region->getHighAddress();
+				_initRanges[i].top = /*useLocalHigh ? highAddress :*/ region->getHighAddress(false);
+				omrtty_printf("{_PRINT_ MM_ConcurrentGC::determineInitWork(): [region->getLowAddress(): %p] [region->getHighAddress(): %p] [_initRanges[i].top: %p]   }\n", region->getLowAddress(), region->getHighAddress(false), _initRanges[i].top);
 				_initRanges[i].subspace = subspace;
 				_initRanges[i].current = _initRanges[i].base;
 				_initRanges[i].initBytes = _markingScheme->numMarkBitsInRange(env,_initRanges[i].base,_initRanges[i].top);
@@ -1321,7 +1340,7 @@ MM_ConcurrentGC::resumeConHelperThreads(MM_EnvironmentBase *env)
  * card cleaning) will need to be performed during the next concurrent mark cycle.
  */
 void
-MM_ConcurrentGC::tuneToHeap(MM_EnvironmentBase *env)
+MM_ConcurrentGC::tuneToHeap(MM_EnvironmentBase *env, void* highAddress)
 {
 	MM_Heap *heap = (MM_Heap *)_extensions->heap;
 	uintptr_t heapSize = heap->getActiveMemorySize(MEMORY_TYPE_OLD);
@@ -1427,7 +1446,7 @@ MM_ConcurrentGC::tuneToHeap(MM_EnvironmentBase *env)
 	 * the next cycle now so we get most accurate estimate for trace size target
 	 */
 	if (_rebuildInitWork) {
-		determineInitWork(env);
+		determineInitWork(env, highAddress);
 	} else {
 		/* ..else just reset for next cycle */
 		resetInitRangesForConcurrentKO();
@@ -3284,26 +3303,8 @@ MM_ConcurrentGC::heapAddRange(MM_EnvironmentBase *env, MM_MemorySubSpace *subspa
 
 	_heapAlloc = _extensions->heap->getHeapTop();
 
-	/* If called outside a global collection for a heap expand...
-	 */
-	if( !_globalCollectionInProgress) {
-		/* ... and a concurrent cycle has not yet started then we
-		 *  tune to heap here to reflect new heap size
-		 *  Note: CMVC 153167 : Under gencon, there is a timing hole where
-		 *  if we are in the middle of initializing the heap ranges while a
-		 *  scavenge occurs, and if the scavenge causes the heap to contract,
-		 *  we will try to memset ranges that are now contracted (decommitted memory)
-		 *  when we resume the init work.
-		 */
-		if (_stats.getExecutionMode() < CONCURRENT_INIT_COMPLETE) {
-			tuneToHeap(env);
-		} else {
-			/* Heap expand is during a concurrent cycle..we need to adjust the trace target so
-		 	* that the trace rate is adjusted correctly on subsequent allocates.
-		 	*/
-			adjustTraceTarget();
-		}
-	}
+	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+	omrtty_printf("ConcurrantGC::heapAddRange calling subspace: %s \n", subspace->getParent()->getName());
 
 	Trc_MM_ConcurrentGC_heapAddRange_Exit(env->getLanguageVMThread());
 
@@ -3339,27 +3340,6 @@ MM_ConcurrentGC::heapRemoveRange(MM_EnvironmentBase *env, MM_MemorySubSpace *sub
 	result = result && ((MM_ConcurrentCardTable *)_cardTable)->heapRemoveRange(env, subspace, size, lowAddress, highAddress, lowValidAddress, highValidAddress);
 	_heapAlloc = (void *)_extensions->heap->getHeapTop();
 
-	/* If called outside a global collection for a heap contract..
-	 */
-	if( !_globalCollectionInProgress) {
-		/* ... and a concurrent cycle has not yet started then we
-		 *  tune to heap here to refelect new heap size
-		 *  Note: CMVC 153167 : Under gencon, there is a timing hole where
-		 *  if we are in the middle of initializing the heap ranges while a
-		 *  scavenge occurs, and if the scavenge causes the heap to contract,
-		 *  we will try to memset ranges that are now contracted (decommitted memory)
-		 *  when we resume the init work.
-		 */
-		if (_stats.getExecutionMode() < CONCURRENT_INIT_COMPLETE) {
-			tuneToHeap(env);
-		} else {
-			/* Heap contract is during a concurrent cycle..we need to adjust the trace target so
-			 * that the trace rate is adjusted correctly on  subsequent allocates.
-			 */
-			adjustTraceTarget();
-		}
-	}
-
 	Trc_MM_ConcurrentGC_heapRemoveRange_Exit(env->getLanguageVMThread());
 
 	return result;
@@ -3371,6 +3351,31 @@ MM_ConcurrentGC::heapRemoveRange(MM_EnvironmentBase *env, MM_MemorySubSpace *sub
 void
 MM_ConcurrentGC::heapReconfigured(MM_EnvironmentBase *env)
 {
+	/* If called outside a global collection for a heap expand...
+	 */
+	if( !_globalCollectionInProgress) {
+		/* ... and a concurrent cycle has not yet started then we
+		 *  tune to heap here to reflect new heap size
+		 *  Note: CMVC 153167 : Under gencon, there is a timing hole where
+		 *  if we are in the middle of initializing the heap ranges while a
+		 *  scavenge occurs, and if the scavenge causes the heap to contract,
+		 *  we will try to memset ranges that are now contracted (decommitted memory)
+		 *  when we resume the init work.
+		 */
+		//int SStype = strcmp(subspace->getParent()->getName(), "Flat" );
+		if (_stats.getExecutionMode() < CONCURRENT_INIT_COMPLETE) {
+			tuneToHeap(env/*, SStype == 0 ? highAddress : NULL*/); //temp comment remove - if flat, pass in the high address to use
+		} else {
+			/* Heap expand is during a concurrent cycle..we need to adjust the trace target so
+		 	* that the trace rate is adjusted correctly on subsequent allocates.
+		 	*/
+			adjustTraceTarget();
+		}
+	}
+
+
+
+	//TODO(Salman): Introduce TRC points
 	/* Expand any superclass structures */
 	MM_ParallelGlobalGC::heapReconfigured(env);
 

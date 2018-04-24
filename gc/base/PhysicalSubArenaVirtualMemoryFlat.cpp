@@ -208,10 +208,11 @@ MM_PhysicalSubArenaVirtualMemoryFlat::expandNoCheck(MM_EnvironmentBase *env, uin
 		MM_MemorySubSpace *genericSubSpace = ((MM_MemorySubSpaceFlat *)_subSpace)->getChildSubSpace();
 
 		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
-		omrtty_printf("{_PRINT_ MM_PhysicalSubArenaVirtualMemoryFlat::expandNoCheck(): [expandSize %zu] }\n", expandSize);
+		omrtty_printf("{_PRINT_ MM_PhysicalSubArenaVirtualMemoryFlat::expandNoCheck(): [lowExpandAddress %p] [highExpandAddress %p] [_lowAddress %p] [_highAddress %p] }\n", lowExpandAddress, highExpandAddress, _lowAddress, _highAddress);
 
-
-		bool result = genericSubSpace->heapAddRange(env, _subSpace , expandSize, lowExpandAddress, highExpandAddress);
+		//_region->printDebug = true;
+		bool result = genericSubSpace->heapAddRange(env, genericSubSpace , expandSize, lowExpandAddress, highExpandAddress);
+		//_region->printDebug = false;
 
 		getHeapRegionManager()->resizeAuxillaryRegion(env, _region, _lowAddress, _highAddress);
 		Assert_MM_true(NULL != _region);
@@ -221,7 +222,7 @@ MM_PhysicalSubArenaVirtualMemoryFlat::expandNoCheck(MM_EnvironmentBase *env, uin
 			genericSubSpace->addExistingMemory(env, this, expandSize, lowExpandAddress, highExpandAddress, true);
 		}
 
-		genericSubSpace->heapReconfigured(env); // MM_ParallelSweepScheme::heapReconfigured => MM_SweepHeapSectioning::update
+		_subSpace->heapReconfigured(env); // MM_ParallelSweepScheme::heapReconfigured => MM_SweepHeapSectioning::update
 	}
 
 	Assert_MM_true(_lowAddress == _region->getLowAddress());

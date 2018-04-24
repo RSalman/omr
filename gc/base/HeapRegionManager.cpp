@@ -299,14 +299,14 @@ MM_HeapRegionManager::internalFreeRegionTable(MM_EnvironmentBase* env, MM_HeapRe
 }
 
 MM_HeapRegionDescriptor*
-MM_HeapRegionManager::auxillaryDescriptorForAddress(const void* address)
+MM_HeapRegionManager::auxillaryDescriptorForAddress(const void* address, bool allow)
 {
 	MM_HeapRegionDescriptor* region = NULL;
 	lock();
 
 	region = getFirstAuxiliaryRegion();
 	while (NULL != region) {
-		if (region->isAddressInRegion(address)) {
+		if (region->isAddressInRegion(address, allow)) {
 			break;
 		}
 		region = getNextAuxiliaryRegion(region);

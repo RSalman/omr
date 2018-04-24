@@ -421,7 +421,7 @@ MM_ParallelSweepScheme::performSamplingCalculations(MM_EnvironmentBase *env, MM_
 		uintptr_t holeSize = (uintptr_t)object - ((uintptr_t)prevObject + prevObjectSize);
 
 		if(holeSize >= minimumFreeEntrySize){
-			omrtty_printf("_PRINT_ {MM_ParallelSweepScheme::performSamplingCalculations(): [holeSize %zu] [prevObjectSize %zu] }\n", holeSize, prevObjectSize);
+			omrtty_printf("_PRINT_ {MM_ParallelSweepScheme::performSamplingCalculations(): [holeSize %zu] [prevObjectSize %zu addr: %p] [object addr %p]}\n", holeSize, prevObjectSize, prevObject, object);
 		}
 
 		Assert_MM_true(holeSize < minimumFreeEntrySize);

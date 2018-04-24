@@ -289,7 +289,7 @@ private:
 	MMINLINE float getAllocToTraceRateNormal() { return (float)_allocToTraceRateNormal;};
 	
 	float interpolateInRange(float, float, float, uintptr_t);
-	void determineInitWork(MM_EnvironmentBase *env);
+	void determineInitWork(MM_EnvironmentBase *env, void* highAddress = NULL);
 	void resetInitRangesForConcurrentKO();
 	void resetInitRangesForSTW();
 	bool getInitRange(MM_EnvironmentBase *env, void **from, void **to, InitType *type, bool *concurrentCollectable);
@@ -302,7 +302,7 @@ private:
 	
 	void adjustTraceTarget();
 	void updateTuningStatistics(MM_EnvironmentBase *env);
-	void tuneToHeap(MM_EnvironmentBase *env);
+	void tuneToHeap(MM_EnvironmentBase *env, void* highAddress = NULL);
 
 	void conHelperEntryPoint(OMR_VMThread *omrThread, uintptr_t slaveID);
 	void shutdownAndExitConHelperThread(OMR_VMThread *omrThread);
