@@ -356,6 +356,7 @@ MM_ConcurrentCardTable::heapAddRange(MM_EnvironmentBase *env, MM_MemorySubSpace 
 			 * concurrently collectable subspace
 			 */
 			result = allocateTLHMarkMapEntriesForHeapRange(env, subspace, size, lowAddress, highAddress);
+			//TODO (SALMAN):
 			_cardTableReconfigured = true;
 		}
 	}
@@ -957,6 +958,10 @@ MM_ConcurrentCardTable::cleanSingleCard(MM_EnvironmentBase *env, Card *card, uin
 
 	/* Iterate over all marked objects in the card */
 	MM_HeapMapIterator markedObjectIterator(_extensions, _markingScheme->getMarkMap(), heapBase, heapTop);
+
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+	omrtty_printf("{_PRINT_ MM_ConcurrentCardTable::cleanSingleCard(): [heapBase %p] [heapTop %p] }\n", heapBase, heapTop);
+
 
 	/* Re-trace all objects which START in this card */
 	MM_ConcurrentGCStats *stats = _collector->getConcurrentGCStats();

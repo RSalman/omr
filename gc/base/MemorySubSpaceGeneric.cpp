@@ -630,11 +630,7 @@ MM_MemorySubSpaceGeneric::expanded(MM_EnvironmentBase* env, MM_PhysicalSubArena*
 
 	if (result) {
 		/* Feed the range to the memory pool */
-		_memoryPool->expandWithRange(env, size, lowAddress, highAddress, canCoalesce);
-
-		if (MEMORY_TYPE_OLD == (getTypeFlags() & MEMORY_TYPE_OLD)) {
-			addTenureRange(env, size, lowAddress, highAddress);
-		}
+		addExistingMemory(env, subArena, size, lowAddress, highAddress, canCoalesce);
 	}
 	return result;
 }
@@ -760,7 +756,10 @@ MM_MemorySubSpaceGeneric::addTenureRange(MM_EnvironmentBase* env, uintptr_t size
 		extensions->heapSizeForBarrierRange0 = size;
 	}
 
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+	omrtty_printf("{_PRINT_ MM_MemorySubSpaceGeneric::addTenureRange(): [lowAddress %p] [highAddress %p] }\n", low, high);
 	extensions->setTenureAddressRange(extensions->heapBaseForBarrierRange0, extensions->heapSizeForBarrierRange0);
+	omrtty_printf("{_PRINT_ MM_MemorySubSpaceGeneric::addTenureRange(): [lowAddress %p] [highAddress %p] }\n", low, high);
 }
 
 void

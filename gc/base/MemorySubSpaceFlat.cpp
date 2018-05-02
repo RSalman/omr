@@ -379,7 +379,6 @@ MM_MemorySubSpaceFlat::expanded(MM_EnvironmentBase* env, MM_PhysicalSubArena* su
 bool
 MM_MemorySubSpaceFlat::expanded(MM_EnvironmentBase* env, MM_PhysicalSubArena* subArena, uintptr_t size, void* lowAddress, void* highAddress, bool canCoalesce)
 {
-	/* Inform the child */
 	return _memorySubSpace->expanded(env, subArena, size, lowAddress, highAddress, canCoalesce);
 }
 

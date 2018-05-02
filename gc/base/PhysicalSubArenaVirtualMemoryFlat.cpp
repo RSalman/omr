@@ -35,7 +35,9 @@
 #include "PhysicalArena.hpp"
 #include "PhysicalArenaVirtualMemory.hpp"
 #include "VirtualMemory.hpp"
+#include "MemorySubSpaceFlat.hpp"
 #include "ModronAssertions.h"
+
 
 /**
  * Create and return a new instance of MM_PhysicalSubArenaVirtualMemoryFlat.
@@ -202,13 +204,25 @@ MM_PhysicalSubArenaVirtualMemoryFlat::expandNoCheck(MM_EnvironmentBase *env, uin
 	if (_highAddress != highExpandAddress) {
 		/* the area has been expanded.  Update internal values */
 		_highAddress = highExpandAddress;
-		/* Reconstruct the region at its new size */
+
+		MM_MemorySubSpace *genericSubSpace = ((MM_MemorySubSpaceFlat *)_subSpace)->getChildSubSpace();
+
+		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+		omrtty_printf("{_PRINT_ MM_PhysicalSubArenaVirtualMemoryFlat::expandNoCheck(): [lowExpandAddress %p] [highExpandAddress %p] [_lowAddress %p] [_highAddress %p] }\n", lowExpandAddress, highExpandAddress, _lowAddress, _highAddress);
+
+		//_region->printDebug = true;
+		bool result = genericSubSpace->heapAddRange(env, genericSubSpace , expandSize, lowExpandAddress, highExpandAddress);
+		//_region->printDebug = false;
+
 		getHeapRegionManager()->resizeAuxillaryRegion(env, _region, _lowAddress, _highAddress);
 		Assert_MM_true(NULL != _region);
 
-		/* Update the owning subspace */
-		_subSpace->expanded(env, this, expandSize, lowExpandAddress, highExpandAddress, true);
-		_subSpace->heapReconfigured(env);
+		if(result){
+			// => _memoryPool->expandWithRange => MM_MemoryPoolAddressOrderedList::expandWithRange
+			genericSubSpace->addExistingMemory(env, this, expandSize, lowExpandAddress, highExpandAddress, true);
+		}
+
+		_subSpace->heapReconfigured(env); // MM_ParallelSweepScheme::heapReconfigured => MM_SweepHeapSectioning::update
 	}
 
 	Assert_MM_true(_lowAddress == _region->getLowAddress());
@@ -239,7 +253,7 @@ MM_PhysicalSubArenaVirtualMemoryFlat::contract(MM_EnvironmentBase *env, uintptr_
 	MM_GCExtensionsBase *extensions = env->getExtensions();
 	uintptr_t contractSize = requestContractSize;
 	/* Get the memory subspace associated with the contract */
-	MM_MemorySubSpace *genericSubSpace = _region->getSubSpace();
+	MM_MemorySubSpace *genericSubSpace = ((MM_MemorySubSpaceFlat *) _subSpace)->getChildSubSpace();
 	void *oldLowAddress = _region->getLowAddress();
 	void *oldHighAddress = _region->getHighAddress();
 

@@ -135,6 +135,14 @@ MM_HeapMap::heapAddRange(MM_EnvironmentBase *env, uintptr_t size, void *lowAddre
 		uintptr_t heapOffsetHigh = _extensions->heap->calculateOffsetFromHeapBase(highAddress);
 		uintptr_t heapMapCommitOffset = convertHeapIndexToHeapMapIndex(env, heapOffsetLow, sizeof(uintptr_t));
 		uintptr_t heapMapCommitSize = convertHeapIndexToHeapMapIndex(env, heapOffsetHigh, sizeof(uintptr_t)) - heapMapCommitOffset;
+
+		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+		omrtty_printf("{_PRINT_ MM_HeapMap::heapAddRange(): [heapOffsetLow %zu] \t [heapOffsetHigh %zu] \t [heapMapCommitOffset %zu] \t [heapMapCommitSize %zu] }\n", heapOffsetLow,
+				heapOffsetHigh,
+				heapMapCommitOffset,
+				heapMapCommitSize);
+
+
 	
 		MM_MemoryManager *memoryManager = _extensions->memoryManager;
 		commited = memoryManager->commitMemory(&_heapMapMemoryHandle, (void *)(((uintptr_t)_heapMapBits) + heapMapCommitOffset), heapMapCommitSize);
@@ -264,10 +272,14 @@ MM_HeapMap::setBitsInRange(MM_EnvironmentBase *env, void *lowAddress, void *high
 	topIndex >>= _heapMapIndexShift;
 	
 	bytesToSet= (topIndex - baseIndex) * sizeof(uintptr_t);
-		
+
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+
 	if (clear) {
+		omrtty_printf("{_PRINT_ MM_HeapMap::setBitsInRange(CLEAR): CLEAR [lowAddress %p] [highAddress %p] }\n", lowAddress, highAddress);
 		OMRZeroMemory((void *)&(_heapMapBits[baseIndex]), bytesToSet);
 	} else {
+		omrtty_printf("{_PRINT_ MM_HeapMap::setBitsInRange(): [lowAddress %p] [highAddress %p] }\n", lowAddress, highAddress);
 		memset(&(_heapMapBits[baseIndex]), 0xFF, bytesToSet);
 	}
 		
