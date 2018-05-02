@@ -819,8 +819,6 @@ void
 MM_ConcurrentGC::determineInitWork(MM_EnvironmentBase *env, void* highAddress)
 {
 	bool initDone= false;
-	uintptr_t initWork;
-
 	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
 
 	Trc_MM_ConcurrentGC_determineInitWork_Entry(env->getLanguageVMThread());
@@ -841,7 +839,7 @@ MM_ConcurrentGC::determineInitWork(MM_EnvironmentBase *env, void* highAddress)
 			/* Get reference to owning subspace */
 			MM_MemorySubSpace *subspace = region->getSubSpace();
 
-			omrtty_printf("ConcurrantGC::determineInitWork calling subspace: %s \n", subspace->getParent()->getName());
+			omrtty_printf("ConcurrantGC::determineInitWork [env: %p] calling subspace: %s \n", env, subspace->getParent()->getName());
 
 			//int SStype = strcmp(subspace->getParent()->getName(), "Flat" );
 			//bool useLocalHigh = SStype == 0 && highAddress != NULL;
@@ -860,9 +858,10 @@ MM_ConcurrentGC::determineInitWork(MM_EnvironmentBase *env, void* highAddress)
 
 			/* If space in initRanges array add it */
 			if (_numInitRanges < _numPhysicalInitRanges) {
+				omrthread_sleep(1);
 				_initRanges[i].base = region->getLowAddress();
 				_initRanges[i].top = /*useLocalHigh ? highAddress :*/ region->getHighAddress(false);
-				omrtty_printf("{_PRINT_ MM_ConcurrentGC::determineInitWork(): [region->getLowAddress(): %p] [region->getHighAddress(): %p] [_initRanges[i].top: %p]   }\n", region->getLowAddress(), region->getHighAddress(false), _initRanges[i].top);
+				omrtty_printf("{_PRINT_ MM_ConcurrentGC::determineInitWork(): [env: %p] [region->getLowAddress(): %p] [region->getHighAddress(): %p] [_initRanges[i].top: %p]   }\n", env, region->getLowAddress(), region->getHighAddress(false), _initRanges[i].top);
 				_initRanges[i].subspace = subspace;
 				_initRanges[i].current = _initRanges[i].base;
 				_initRanges[i].initBytes = _markingScheme->numMarkBitsInRange(env,_initRanges[i].base,_initRanges[i].top);
@@ -904,6 +903,7 @@ MM_ConcurrentGC::determineInitWork(MM_EnvironmentBase *env, void* highAddress)
 			/* Add init ranges for all card table ranges for concurrently collectable segments */
 			for (I_32 x=i-1; x >= 0; x--) {
 				if ((_initRanges[x].type == MARK_BITS) && ((_initRanges[x].subspace)->isConcurrentCollectable())) {
+					omrthread_sleep(1);
 					_initRanges[i].base = _initRanges[x].base;
 					_initRanges[i].top = _initRanges[x].top;
 					_initRanges[i].current = _initRanges[i].base;
@@ -920,15 +920,18 @@ MM_ConcurrentGC::determineInitWork(MM_EnvironmentBase *env, void* highAddress)
 	}
 
 	/* Now count total initailization work we have to do */
-	initWork = 0;
+	uintptr_t initWork = 0;
 	for (uint32_t i = 0; i < _numInitRanges; i++) {
 		if (_initRanges[i].base != NULL) {
+			omrthread_sleep(1); //*TEMP* Added to reproduc bug
 			initWork += _initRanges[i].initBytes;
 		}
 	}
 
 	_stats.setInitWorkRequired(initWork);
 	_rebuildInitWork = false;
+
+	omrtty_printf("determineInitWork env %llx done: _nextInitRange %zu _numInitRanges %zu\n", env, _nextInitRange, _numInitRanges);
 
 	Trc_MM_ConcurrentGC_determineInitWork_Exit(env->getLanguageVMThread());
 }
@@ -942,6 +945,7 @@ void
 MM_ConcurrentGC::resetInitRangesForConcurrentKO()
 {
 	for (uint32_t i=0; i < _numInitRanges; i++) {
+		omrthread_sleep(1);
 		_initRanges[i].current= _initRanges[i].base;
 	}
 
@@ -960,6 +964,7 @@ void
 MM_ConcurrentGC::resetInitRangesForSTW()
 {
 	for (uint32_t i=0; i < _numInitRanges; i++) {
+		omrthread_sleep(1);
 		if (MARK_BITS  == _initRanges[i].type && (!((_initRanges[i].subspace)->isConcurrentCollectable())) ) {
 			_initRanges[i].current= _initRanges[i].base;
 		} else {
@@ -992,11 +997,14 @@ MM_ConcurrentGC::getInitRange(MM_EnvironmentBase *env, void **from, void **to, I
     void *localTo,*localFrom;
     uint32_t oldIndex, newIndex;
 
+    OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+
     Trc_MM_ConcurrentGC_getInitRange_Entry(env->getLanguageVMThread());
     
 	/* Cache _numInitRanges as it may be changed by another thread */
 	i= (uint32_t)_nextInitRange;
 	while(i < _numInitRanges) {
+		omrthread_sleep(1);
 		/* Cache ptr to next range */
 		localFrom = (void *)_initRanges[i].current;
 		if (localFrom < _initRanges[i].top) {
@@ -1020,6 +1028,8 @@ MM_ConcurrentGC::getInitRange(MM_EnvironmentBase *env, void **from, void **to, I
 				*to = localTo;
 				*type= _initRanges[i].type;
 				*concurrentCollectable = (_initRanges[i].subspace)->isConcurrentCollectable() ? true : false;
+
+				omrtty_printf("ConcurrantGC::getInitRange [env: %p] _nextInitRange: %i from: %p to: %p \n", env,i, *from , *to );
 
 				Trc_MM_ConcurrentGC_getInitRange_Succeed(env->getLanguageVMThread(), *from, *to, *type, *concurrentCollectable ? "true" : "false");
 
@@ -1446,10 +1456,53 @@ MM_ConcurrentGC::tuneToHeap(MM_EnvironmentBase *env, void* highAddress)
 	 * the next cycle now so we get most accurate estimate for trace size target
 	 */
 	if (_rebuildInitWork) {
-		determineInitWork(env, highAddress);
+#if 1
+		/* Hold _initWorkMonitor to prevent any thread from starting/joining init work,
+		 * since we are about to change the _initRange table (that initializer threads consume) */
+		OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+		omrtty_printf("tuneToHeap env %llx about to acquire _initWorkMonitor\n", env);
+		omrthread_monitor_enter(_initWorkMonitor);
+		omrtty_printf("tuneToHeap env %llx _initWorkMonitor acquired\n", env);
+
+		/* are there threads that already started consuming _initRange table? */
+		if (_initializers > 0) {
+			omrtty_printf("tuneToHeap env %llx there is active initialization (_initializers %zu); about to start waiting \n", env, _initializers);
+
+			/* Wait for active initializers to finish */
+			omrthread_monitor_enter(_initWorkCompleteMonitor);
+			omrtty_printf("tuneToHeap env %llx _initWorkCompleteMonitor acquired \n", env);
+
+			/* While waiting to be notified we don't want to prevent other threads to join the ongoing initialization */
+			omrthread_monitor_exit(_initWorkMonitor);
+
+			omrthread_monitor_wait(_initWorkCompleteMonitor);
+
+			omrtty_printf("tuneToHeap env %llx resuming\n", env);
+
+			/* Ongoing initialization just completed.
+			 * Re-acquire _initWorkMonitor to prevent another init cycle to start (Unlikely, if possible at all). */
+			omrthread_monitor_enter(_initWorkMonitor);
+			omrtty_printf("tuneToHeap env %llx re-acquired _initWorkMonitor\n", env);
+			Assert_MM_true(0 == _initializers);
+			omrthread_monitor_exit(_initWorkCompleteMonitor);
+
+		}
+
+		determineInitWork(env);
+
+		omrtty_printf("tuneToHeap env %llx done determineInitWork \n", env);
+
+		omrthread_monitor_exit(_initWorkMonitor);
+#else
+		determineInitWork(env);
+#endif
+
 	} else {
+		OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+		omrtty_printf("tuneToHeap env %llx resetInitRangesForConcurrentKO start\n", env);
 		/* ..else just reset for next cycle */
 		resetInitRangesForConcurrentKO();
+		omrtty_printf("tuneToHeap env %llx resetInitRangesForConcurrentKO end\n", env);
 	}
 
 	/* Reset trace rate for next concurrent cycle */
@@ -1457,7 +1510,7 @@ MM_ConcurrentGC::tuneToHeap(MM_EnvironmentBase *env, void* highAddress)
 
 	/*
 	 * Trace target is simply a sum of all work we predict we need to complete marking.
-	 * Initialiization work is accounted for seperately
+	 * Initialization work is accounted for separately
 	 */
 	_traceTargetPass1 = _bytesToTracePass1 + _bytesToCleanPass1;
 	_traceTargetPass2 = _bytesToTracePass2 + _bytesToCleanPass2;
@@ -1475,7 +1528,7 @@ MM_ConcurrentGC::tuneToHeap(MM_EnvironmentBase *env, void* highAddress)
 	cardCleaningThreshold = ((uintptr_t)((float)kickoffThreshold / _cardCleaningThresholdFactor));
 
 	/* We need to ensure that we complete tracing just before we run out of
-	 * storage otherwise we will more than likley get an AF whilst last few allocates
+	 * storage otherwise we will more than likely get an AF whilst last few allocates
 	 * are paying finishing off the last bit of tracing. So we create a buffer zone
 	 * by bringing forward the KO threshold. We remember by how much so we can
 	 * make the necessary adjustments to calculations in calculateTraceSize().
@@ -2421,7 +2474,17 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 	InitType type;
 	bool concurrentCollectable;
 
+	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+	omrtty_printf("doConcurrentInitialization env %llx about to acquire _initWorkMonitor\n", env);
+
+	/* Besides other threads also trying to join (what needs synchronization), specifically for Concurrent Scavenger,
+	 * _initRange table that we are about to rely on, could be modified, as part of Tenure expansion
+	 * (due to failed tenuring in a middle of a Scavenger cycle.
+	 * _initWorkMonitor makes sure our work does not overlap with the table mutation.
+	 */
 	omrthread_monitor_enter(_initWorkMonitor);
+	omrtty_printf("doConcurrentInitialization env %llx _initWorkMonitor acquired _nextInitRange %zu _numInitRanges %zu\n",
+			env, _nextInitRange, _numInitRanges);
 
 	/* If the execution state has changed then return */
 	if(_stats.getExecutionMode() != CONCURRENT_INIT_RUNNING) {
@@ -2431,6 +2494,7 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 
 	if (!allInitRangesProcessed()){ /* We just act as an general helper */
 		_initializers += 1;
+		omrtty_printf("doConcurrentInitialization env %llx _initializers++ %zu\n", env, _initializers);
 
 		if (!_initSetupDone ) {
 			_markingScheme->getWorkPackets()->reset(env);
@@ -2446,7 +2510,9 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 		/* wait for active initializers to finish */
 		omrthread_monitor_enter(_initWorkCompleteMonitor);
 		omrthread_monitor_exit(_initWorkMonitor);
+		omrtty_printf("doConcurrentInitialization env %llx waiting for initializers to finish (1)\n", env);
 		omrthread_monitor_wait(_initWorkCompleteMonitor);
+		omrtty_printf("doConcurrentInitialization env %llx all initializers finished (1)\n", env);
 		omrthread_monitor_exit(_initWorkCompleteMonitor);
 
 		/* ..and we are done */
@@ -2485,9 +2551,11 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 		}
 	}
 
+	omrtty_printf("doConcurrentInitialization env %llx done with our getInitRange, about to acquire _initWorkMonitor\n", env);
 	omrthread_monitor_enter(_initWorkMonitor);
 	_initializers--;
 
+	omrtty_printf("doConcurrentInitialization env %llx _initializers-- %zu\n", env, _initializers);
 	/* Other threads still busy initailizing */
 	if(_initializers > 0) {
 		/* Did we run out of initialization work before paying all of our tax ? */
@@ -2496,7 +2564,9 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 			 */
 			omrthread_monitor_enter(_initWorkCompleteMonitor);
 			omrthread_monitor_exit(_initWorkMonitor);
+			omrtty_printf("doConcurrentInitialization env %llx waiting for initializers to finish (2)\n", env);
 			omrthread_monitor_wait(_initWorkCompleteMonitor);
+			omrtty_printf("doConcurrentInitialization env %llx all initializers finished (2)\n", env);
 			omrthread_monitor_exit(_initWorkCompleteMonitor);
 		} else {
 			/* No..we have completely paid our tax or GC is waiting so return */
@@ -2512,6 +2582,7 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 		if (allInitRangesProcessed() || env->isExclusiveAccessRequestWaiting()) {
 			/* Wake up any helper threads */
 			omrthread_monitor_enter(_initWorkCompleteMonitor);
+			omrtty_printf("doConcurrentInitialization env %llx notify all we are done\n", env);
 			omrthread_monitor_notify_all(_initWorkCompleteMonitor);
 			omrthread_monitor_exit(_initWorkCompleteMonitor);
 
@@ -3034,10 +3105,16 @@ MM_ConcurrentGC::internalPreCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *
 			 * concurrent we need to determine the new ranges of
 			 * NEW bits which need clearing
 			 */
+			OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+
 			if (_rebuildInitWork) {
+				omrtty_printf("internalPreCollect env %llx determineInitWork start\n", env);
 				determineInitWork(env);
+				omrtty_printf("internalPreCollect env %llx determineInitWork end\n", env);
 			}
+			omrtty_printf("internalPreCollect env %llx resetInitRangesForConcurrentKO start\n", env);
 			resetInitRangesForSTW();
+			omrtty_printf("internalPreCollect env %llx resetInitRangesForConcurrentKO start\n", env);
 
 			/* Get assistance from all slave threads to reset all mark bits for any NEW areas of heap */
 			MM_ConcurrentClearNewMarkBitsTask clearNewMarkBitsTask(env, _dispatcher, this);
@@ -3225,7 +3302,10 @@ MM_ConcurrentGC::abortCollection(MM_EnvironmentBase *env, CollectionAbortReason 
 #endif
 
 	/* make sure to reset the init ranges before the next kickOff */
+	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+	omrtty_printf("abortCollection env %llx resetInitRangesForConcurrentKO start\n", env);
 	resetInitRangesForConcurrentKO();
+	omrtty_printf("abortCollection env %llx resetInitRangesForConcurrentKO start\n", env);
 
 	/* ...but just in case check it does */
 	Assert_GC_true_with_message(env, CONCURRENT_OFF == _stats.getExecutionMode(), "MM_ConcurrentStats::_executionMode = %zu\n", _stats.getExecutionMode());
@@ -3280,9 +3360,6 @@ MM_ConcurrentGC::heapAddRange(MM_EnvironmentBase *env, MM_MemorySubSpace *subspa
 			 * set the bits on to stop tracing INTO this area during concurrent
 			 * mark cycle.
 			 */
-
-			//omrthread_sleep(10); //*TEMP* Added to reproduc bug
-
 			if (subspace->isConcurrentCollectable()) {
 				_markingScheme->setMarkBitsInRange(env, lowAddress, highAddress, true);
 				clearCards = true;
@@ -3304,7 +3381,7 @@ MM_ConcurrentGC::heapAddRange(MM_EnvironmentBase *env, MM_MemorySubSpace *subspa
 	_heapAlloc = _extensions->heap->getHeapTop();
 
 	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
-	omrtty_printf("ConcurrantGC::heapAddRange calling subspace: %s \n", subspace->getParent()->getName());
+	omrtty_printf("ConcurrantGC::heapAddRange [env: %p] calling subspace: %s \n", env, subspace->getParent()->getName());
 
 	Trc_MM_ConcurrentGC_heapAddRange_Exit(env->getLanguageVMThread());
 

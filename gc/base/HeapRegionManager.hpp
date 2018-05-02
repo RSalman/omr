@@ -314,6 +314,7 @@ public:
 	MM_HeapRegionDescriptor* auxillaryDescriptorForAddress(const void* address, bool allow = true);
 	MMINLINE void resizeAuxillaryRegion(MM_EnvironmentBase* env, MM_HeapRegionDescriptor* region, void* lowAddress, void* highAddress)
 	{
+		Assert_MM_true(highAddress <= ((void *)0x20000000));
 		writeLock();
 		_totalHeapSize -= region->getSize();
 		region->reinitialize(env, lowAddress, highAddress);

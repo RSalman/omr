@@ -272,10 +272,14 @@ MM_HeapMap::setBitsInRange(MM_EnvironmentBase *env, void *lowAddress, void *high
 	topIndex >>= _heapMapIndexShift;
 	
 	bytesToSet= (topIndex - baseIndex) * sizeof(uintptr_t);
-		
+
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+
 	if (clear) {
+		omrtty_printf("{_PRINT_ MM_HeapMap::setBitsInRange(CLEAR): CLEAR [lowAddress %p] [highAddress %p] }\n", lowAddress, highAddress);
 		OMRZeroMemory((void *)&(_heapMapBits[baseIndex]), bytesToSet);
 	} else {
+		omrtty_printf("{_PRINT_ MM_HeapMap::setBitsInRange(): [lowAddress %p] [highAddress %p] }\n", lowAddress, highAddress);
 		memset(&(_heapMapBits[baseIndex]), 0xFF, bytesToSet);
 	}
 		

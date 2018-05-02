@@ -756,7 +756,10 @@ MM_MemorySubSpaceGeneric::addTenureRange(MM_EnvironmentBase* env, uintptr_t size
 		extensions->heapSizeForBarrierRange0 = size;
 	}
 
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+	omrtty_printf("{_PRINT_ MM_MemorySubSpaceGeneric::addTenureRange(): [lowAddress %p] [highAddress %p] }\n", low, high);
 	extensions->setTenureAddressRange(extensions->heapBaseForBarrierRange0, extensions->heapSizeForBarrierRange0);
+	omrtty_printf("{_PRINT_ MM_MemorySubSpaceGeneric::addTenureRange(): [lowAddress %p] [highAddress %p] }\n", low, high);
 }
 
 void

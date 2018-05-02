@@ -161,6 +161,9 @@ public:
 			return false;
 		}
 
+		if(isConcurrentMarkInProgress())
+			Assert_MM_true(_extensions->isOld(objectPtr));
+
 		/* mark successful - Attempt to add to the work stack */
 		if (!leafType) {
 			env->_workStack.push(env, (void *)objectPtr);
