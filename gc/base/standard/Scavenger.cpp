@@ -405,7 +405,7 @@ MM_Scavenger::masterSetupForGC(MM_EnvironmentStandard *env)
 	scavengerStats->_semiSpaceAllocBytesAcumulation += heapStatsSemiSpace._allocBytes;
 
 	/* Record the tenure mask */
-	_tenureMask = calculateTenureMask();
+	_tenureMask = calculateTenureMask(env);
 	
 	_activeSubSpace->masterSetupForGC(env);
 
@@ -745,9 +745,13 @@ MM_Scavenger::mergeIncrementGCStats(MM_EnvironmentBase *env, bool lastIncrement)
 	MM_ScavengerStats *finalGCStats = &_extensions->scavengerStats;
 	mergeGCStatsBase(env, finalGCStats, &_extensions->incrementScavengerStats);
 
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+	omrtty_printf("{PRINT [mergeIncrementGCStats]: Entry}\n");
+
 	/* Language specific stats were supposed to be merged directly from thread local to cycle global. No need to merge them here. */
 
 	if (lastIncrement) {
+		omrtty_printf("{PRINT [mergeIncrementGCStats]: last increment}\n");
 		/* Calculate new tenure age */
 		finalGCStats->getFlipHistory(0)->_tenureMask = _tenureMask;
 		uintptr_t tenureAge = 0;
@@ -756,6 +760,8 @@ MM_Scavenger::mergeIncrementGCStats(MM_EnvironmentBase *env, bool lastIncrement)
 				break;
 			}
 		}
+
+		omrtty_printf("{PRINT [mergeIncrementGCStats]: _tenureAge %zu}\n", tenureAge);
 		finalGCStats->_tenureAge = tenureAge;
 
 		/* Update historical flip stats for age 0 */
@@ -3616,6 +3622,7 @@ void
 MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_AllocateDescription *allocDescription, bool initMarkMap, bool rebuildMarkBits)
 {
 	OMRPORT_ACCESS_FROM_OMRPORT(envBase->getPortLibrary());
+	omrtty_printf("{PRINT [masterThreadGarbageCollect]: Start }\n");
 	MM_EnvironmentStandard *env = MM_EnvironmentStandard::getEnvironment(envBase);
 	Trc_MM_Scavenger_masterThreadGarbageCollect_Entry(env->getLanguageVMThread());
 
@@ -3634,7 +3641,9 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 #endif
 
 	if (firstIncrement)	{
+		omrtty_printf("{PRINT [masterThreadGarbageCollect]: First Increment }\n");
 		if (_extensions->processLargeAllocateStats) {
+			omrtty_printf("{PRINT [masterThreadGarbageCollect]: ProcessLargeAllocateStatsBeforeGC }\n");
 			processLargeAllocateStatsBeforeGC(env);
 		}
 
@@ -3669,7 +3678,10 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 	mergeIncrementGCStats(env, lastIncrement);
 	reportScavengeEnd(env, lastIncrement);
 
+	omrtty_printf("{\t PRINT [masterThreadGarbageCollect]: bytesAllocated(%zu) }\n", (&_extensions->allocationStats)->bytesAllocated());
+
 	if (lastIncrement) {
+		omrtty_printf("{PRINT [masterThreadGarbageCollect]: Last Increment }\n");
 		/* defer to collector language interface */
 		_cli->scavenger_masterThreadGarbageCollect_scavengeComplete(env);
 
@@ -3681,6 +3693,7 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 		_extensions->scavengerStats._endTime = omrtime_hires_clock();
 
 		if(scavengeCompletedSuccessfully(env)) {
+			omrtty_printf("{PRINT [masterThreadGarbageCollect]: scavengeCompletedSuccessfully }\n");
 			/* Merge sublists in the remembered set (if necessary) */
 			_extensions->rememberedSet.compact(env);
 
@@ -3698,18 +3711,23 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 			if(_extensions->scvTenureStrategyAdaptive) {
 				/* Adjust the tenure age based on the percentage of new space used.  Also, avoid / by 0 */
 				uintptr_t newSpaceTotalSize = _activeSubSpace->getActiveMemorySize();
-				uintptr_t newSpaceConsumedSize = newSpaceTotalSize - _activeSubSpace->getActualActiveFreeMemorySize();
+				uintptr_t newSpaceConsumedSize = _extensions->scavengerStats._flipBytes;
 				uintptr_t newSpaceSizeScale = newSpaceTotalSize / 100;
+
+				omrtty_printf("{PRINT [masterThreadGarbageCollect]: scvTenureAdaptiveTenureAge (%zu) newSpaceTotalSize (%zu) newSpaceConsumedSize (%zu) newSpaceSizeScale (%zu) bytesAllocated(%zu) _flipBytes (%zu) }\n", _extensions->scvTenureAdaptiveTenureAge, newSpaceTotalSize, newSpaceConsumedSize, newSpaceSizeScale, (&_extensions->allocationStats)->bytesAllocated(), _extensions->scavengerStats._flipBytes);
 
 				if((newSpaceConsumedSize < (_extensions->scvTenureRatioLow * newSpaceSizeScale)) && (_extensions->scvTenureAdaptiveTenureAge < OBJECT_HEADER_AGE_MAX)) {
 					_extensions->scvTenureAdaptiveTenureAge++;
+					omrtty_printf("{PRINT [masterThreadGarbageCollect]: scvTenureAdaptiveTenureAge++, new value (%zu)}\n", _extensions->scvTenureAdaptiveTenureAge);
 				} else {
 					if((newSpaceConsumedSize > (_extensions->scvTenureRatioHigh * newSpaceSizeScale)) && (_extensions->scvTenureAdaptiveTenureAge > OBJECT_HEADER_AGE_MIN)) {
 						_extensions->scvTenureAdaptiveTenureAge--;
+						omrtty_printf("{PRINT [masterThreadGarbageCollect]: scvTenureAdaptiveTenureAge-- new value (%zu)}\n", _extensions->scvTenureAdaptiveTenureAge);
 					}
 				}
 			}
 		} else {
+			omrtty_printf("{PRINT [masterThreadGarbageCollect]: scavengeCompletedSuccessfully == FASLE }\n");
 			/* Build free list in survivor profile - the scavenge was unsuccessful, so rebuild the free list */
 			_activeSubSpace->masterTeardownForAbortedGC(env);
 		}
@@ -3755,10 +3773,13 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 	if (lastIncrement) {
 		reportGCCycleEnd(env);
 		if (_extensions->processLargeAllocateStats) {
+			omrtty_printf("{PRINT [masterThreadGarbageCollect]: resetTenureLargeAllocateStats }\n");
 			/* reset tenure processLargeAllocateStats after TGC */
 			resetTenureLargeAllocateStats(env);
 		}
 	}
+
+	omrtty_printf("{\t PRINT [masterThreadGarbageCollect]: Clear Allocation Stats }\n");
 	_extensions->allocationStats.clear();
 
 	if (_extensions->trackMutatorThreadCategory) {
@@ -4366,31 +4387,47 @@ MM_Scavenger::reportGCIncrementEnd(MM_EnvironmentStandard *env)
 }
 
 uintptr_t
-MM_Scavenger::calculateTenureMask()
+MM_Scavenger::calculateTenureMask(MM_EnvironmentStandard *env)
 {
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+
 	/* always tenure objects which have reached the maximum age */
 	uintptr_t newMask = ((uintptr_t)1 << OBJECT_HEADER_AGE_MAX);
 
+	omrtty_printf("{PRINT [calculateTenureMask]: Entry Mask %zu }\n", newMask);
+
 	/* Delegate tenure mask calculations to the active strategies. */
 	if (_extensions->scvTenureStrategyFixed) {
+		omrtty_printf("{PRINT [calculateTenureMask]: Fixed - Mask Before %zu }\n", newMask);
 		newMask |= calculateTenureMaskUsingFixed(_extensions->scvTenureFixedTenureAge);
+		omrtty_printf("{PRINT [calculateTenureMask]: Fixed - Mask After %zu }\n", newMask);
 	}
 	if (_extensions->scvTenureStrategyAdaptive) {
+		omrtty_printf("{PRINT [calculateTenureMask]: Adaptive - Mask Before %zu }\n", newMask);
 		newMask |= calculateTenureMaskUsingFixed(_extensions->scvTenureAdaptiveTenureAge);
+		omrtty_printf("{PRINT [calculateTenureMask]: Adaptive - Mask After %zu }\n", newMask);
 	}
 	if (_extensions->scvTenureStrategyLookback) {
-		newMask |= calculateTenureMaskUsingLookback(_extensions->scvTenureStrategySurvivalThreshold);
+		omrtty_printf("{PRINT [calculateTenureMask]: Lookback - Mask Before %zu }\n", newMask);
+		newMask |= calculateTenureMaskUsingLookback(_extensions->scvTenureStrategySurvivalThreshold, env);
+		omrtty_printf("{PRINT [calculateTenureMask]: Lookback - Mask After %zu }\n", newMask);
 	}
 	if (_extensions->scvTenureStrategyHistory) {
+		omrtty_printf("{PRINT [calculateTenureMask]: History - Mask Before %zu }\n", newMask);
 		newMask |= calculateTenureMaskUsingHistory(_extensions->scvTenureStrategySurvivalThreshold);
+		omrtty_printf("{PRINT [calculateTenureMask]: History - Mask After %zu }\n", newMask);
 	}
+
+	omrtty_printf("{PRINT [calculateTenureMask]: Exit Return Mask %zu }\n", newMask);
 
 	return newMask;
 }
 
 uintptr_t
-MM_Scavenger::calculateTenureMaskUsingLookback(double minimumSurvivalRate)
+MM_Scavenger::calculateTenureMaskUsingLookback(double minimumSurvivalRate, MM_EnvironmentStandard *env)
 {
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+
 	Assert_MM_true(0.0 <= minimumSurvivalRate);
 	Assert_MM_true(1.0 >= minimumSurvivalRate);
 
@@ -4409,6 +4446,8 @@ MM_Scavenger::calculateTenureMaskUsingLookback(double minimumSurvivalRate)
 			count += 1;
 		}
 	}
+
+
 	double averageInitialGenerationSize;
 	if (0 == count) {
 		averageInitialGenerationSize = 0;
@@ -4432,16 +4471,24 @@ MM_Scavenger::calculateTenureMaskUsingLookback(double minimumSurvivalRate)
 		standardDeviationOfInitialGenerationSize = sqrt(accumulatedSquareDeltas / (double)count);
 	}
 
+	omrtty_printf("{\t PRINT [LookBack]: accumulatedGenerationSizes (%f) count (%zu) averageInitialGenerationSize (%f) accumulatedSquareDeltas (%f)  standardDeviationOfInitialGenerationSize (%f)}\n", accumulatedGenerationSizes, count, averageInitialGenerationSize, accumulatedSquareDeltas, standardDeviationOfInitialGenerationSize);
+
 	/* This normalized initial generation size (calculated using the standard
 	 * deviation) is used for determining how far back in history we should be looking.
 	 * The larger this is, the shallower we look back.
 	 */
 	uintptr_t normalizedInitialGenerationSize = (uintptr_t)OMR_MAX(0.0, averageInitialGenerationSize - standardDeviationOfInitialGenerationSize);
 
+	omrtty_printf("{\t PRINT [LookBack]: normalizedInitialGenerationSize (%zu)}\n", normalizedInitialGenerationSize);
+
+
 	for (uintptr_t age = 0; age <= OBJECT_HEADER_AGE_MAX + 1; ++age) {
 		/* skip the first row (it's the current scavenge, and is all zero right now).
 		 * Also skip the last row in the history (there's no previous to compare it to)
 		 */
+
+		omrtty_printf("{\t PRINT [LookBack]: AGE (%zu)}\n", age);
+
 		bool shouldTenureThisAge = true;
 		uintptr_t currentGenerationBytes = stats->getFlipHistory(1)->_flipBytes[age];
 
@@ -4460,10 +4507,14 @@ MM_Scavenger::calculateTenureMaskUsingLookback(double minimumSurvivalRate)
 			minimumBytesForRequiredLookback /= 2;
 		}
 
+		omrtty_printf("{\t \t PRINT [LookBack]: maximumLookback (%zu), requiredLookback (%zu) minimumBytesForRequiredLookback (%zu)}\n", maximumLookback, requiredLookback, minimumBytesForRequiredLookback);
+
 		if (requiredLookback >= age) {
 			/* this generation is too young to have enough history to satisfy the lookback */
+			omrtty_printf("{\t \t PRINT [LookBack]: requiredLookback >= age \n");
 			shouldTenureThisAge = false;
 		} else {
+			omrtty_printf("{\t \t PRINT [LookBack]: ELSE ...requiredLookback < age \n");
 			Assert_MM_true(1 <= requiredLookback);
 			Assert_MM_true(requiredLookback < SCAVENGER_FLIP_HISTORY_SIZE);
 			for (uintptr_t lookback = 1; (lookback <= requiredLookback) && shouldTenureThisAge; lookback++) {
@@ -4476,9 +4527,11 @@ MM_Scavenger::calculateTenureMaskUsingLookback(double minimumSurvivalRate)
 
 				if (0 != previousFlipBytes) {
 					if (0 == currentFlipBytes) {
+						omrtty_printf("{\t \t PRINT [LookBack]: SHOULD TENURE = FALSE 1 \n");
 						/* There are no bytes in this age, don't bother tenuring. */
 						shouldTenureThisAge = false;
 					} else if (((double)currentTotalBytes / (double)previousFlipBytes) < minimumSurvivalRate) {
+						omrtty_printf("{\t \t PRINT [LookBack]: SHOULD TENURE = FALSE 2 \n");
 						/* Not enough objects are surviving, don't tenure. */
 						shouldTenureThisAge = false;
 					}
@@ -4489,6 +4542,7 @@ MM_Scavenger::calculateTenureMaskUsingLookback(double minimumSurvivalRate)
 		if (shouldTenureThisAge) {
 			/* Objects in this age are historically still dying at a rate of less than 1%. Tenure them. */
 			mask |= ((uintptr_t)1 << age);
+			omrtty_printf("{\t \t PRINT [LookBack]: SHOULD TENURE == TRUE, MASK (%zu) \n", mask);
 		}
 	}
 

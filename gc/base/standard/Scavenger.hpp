@@ -479,7 +479,7 @@ public:
 	 * @param minimumSurvivalRate The minimum survival rate required to consider tenuring.
 	 * @return A tenure mask for the resulting ages to tenure.
 	 */
-	uintptr_t calculateTenureMaskUsingLookback(double minimumSurvivalRate);
+	uintptr_t calculateTenureMaskUsingLookback(double minimumSurvivalRate, MM_EnvironmentStandard *env);
 
 	/**
 	 * The implementation of the History scavenger tenure strategy.
@@ -505,7 +505,7 @@ public:
 	 * Calculates which generations should be tenured in the form of a bit mask.
 	 * @return mask of ages to tenure
 	 */
-	uintptr_t calculateTenureMask();
+	uintptr_t calculateTenureMask(MM_EnvironmentStandard *env);
 
 	/**
 	 * reset LargeAllocateStats in Tenure Space
