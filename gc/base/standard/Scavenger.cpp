@@ -4544,7 +4544,6 @@ MM_Scavenger::calculateTenureMaskUsingLookback(double minimumSurvivalRate, MM_En
 
 		if (requiredLookback >= age) {
 			/* this generation is too young to have enough history to satisfy the lookback */
-			omrtty_printf("{\t \t PRINT [LookBack]: SHOULD TENURE = FALSE \t (requiredLookback >= age) \n");
 			shouldTenureThisAge = false;
 		} else {
 			omrtty_printf("{\t \t PRINT [LookBack]: ELSE ...requiredLookback < age \n");
