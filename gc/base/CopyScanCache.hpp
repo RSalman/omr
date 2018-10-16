@@ -57,6 +57,7 @@
 #include "Base.hpp"
 #include "ObjectIteratorState.hpp"
 
+class MM_CopyScanCacheStandard;
 /**
  * @todo Provide class documentation
  * @ingroup GC_Base_Core
@@ -67,6 +68,7 @@ class MM_CopyScanCache : public MM_Base {
 private:
 protected:
 public:
+	
 	MM_CopyScanCache* next;
 	uintptr_t flags;
 	bool _hasPartiallyScannedObject; /**< whether the current object been scanned is partially scanned */
@@ -74,6 +76,8 @@ public:
 	void* cacheTop;
 	void* cacheAlloc;
 	void* scanCurrent;
+	
+	MM_CopyScanCacheStandard* nextDefer; //Temp: TODO - look into using something for stack pointer
 
 	/* Members Function */
 private:
@@ -122,6 +126,7 @@ public:
 		, cacheTop(NULL)
 		, cacheAlloc(NULL)
 		, scanCurrent(NULL)
+		, nextDefer(NULL)
 	{
 	}
 
@@ -134,6 +139,7 @@ public:
 		, cacheTop(NULL)
 		, cacheAlloc(NULL)
 		, scanCurrent(NULL)
+		, nextDefer(NULL)
 	{
 	}
 };

@@ -113,6 +113,19 @@ protected:
 #endif /* OMR_GC_SEGREGATED_HEAP */
 
 public:
+	uintptr_t _deferredScanDepth;
+	uintptr_t _numberCopyCachesCreated;
+	uintptr_t _aliasAttempt;
+	
+	uintptr_t _releaseAll;
+	uintptr_t _overflowStack;
+	
+	uintptr_t _totalPushed;
+	uintptr_t _totalPoped;
+	uintptr_t _totalReleased;
+	uintptr_t _maxStack;
+		
+
 	/**
 	 * Codes used to identify attached VM threads.
 	 *
@@ -612,6 +625,15 @@ public:
 		,_regionLocalFree(NULL)
 		,_regionLocalFull(NULL)
 #endif /* OMR_GC_SEGREGATED_HEAP */
+		,_deferredScanDepth(0)
+		,_numberCopyCachesCreated(0)
+		,_aliasAttempt(0)
+		,_releaseAll(0)
+		,_overflowStack(0)
+		,_totalPushed(0)
+		,_totalPoped(0)
+		,_totalReleased(0)
+		,_maxStack(0)
 		,_objectAllocationInterface(NULL)
 		,_workStack()
 		,_threadType(MUTATOR_THREAD)
@@ -660,6 +682,15 @@ public:
 		,_regionLocalFree(NULL)
 		,_regionLocalFull(NULL)
 #endif /* OMR_GC_SEGREGATED_HEAP */
+		,_deferredScanDepth(0)
+		,_numberCopyCachesCreated(0)
+		,_aliasAttempt(0)
+		,_releaseAll(0)
+		,_overflowStack(0)
+		,_totalPushed(0)
+		,_totalPoped(0)
+		,_totalReleased(0)
+		,_maxStack(0)
 		,_objectAllocationInterface(NULL)
 		,_workStack()
 		,_threadType(MUTATOR_THREAD)

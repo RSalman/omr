@@ -62,6 +62,13 @@ public:
 	void *_survivorTLHRemainderBase; /**< base and top pointers of the last unused survivor TLH copy cache, that might be reused  on next copy refresh */
 	void *_survivorTLHRemainderTop;
 
+	
+	MM_CopyScanCacheStandard **_deferredStack;
+	int _stackTop;
+	int _stackBottom;
+
+	uintptr_t _maxDeferred;
+	
 protected:
 
 private:
@@ -95,6 +102,10 @@ public:
 		,_loaAllocation(false)
 		,_survivorTLHRemainderBase(NULL)
 		,_survivorTLHRemainderTop(NULL)
+		,_deferredStack(NULL)
+		,_stackTop(0)
+		,_stackBottom(0)
+		,_maxDeferred(0)
 	{
 		_typeId = __FUNCTION__;
 	}
