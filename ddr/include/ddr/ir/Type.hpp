@@ -48,6 +48,7 @@ class Type
 {
 public:
 	bool _blacklisted;
+	bool _opaque;
 	string _name;
 	size_t _sizeOf; /* Size of type in bytes */
 
@@ -56,8 +57,9 @@ public:
 
 	bool isAnonymousType() const;
 
-	virtual string getFullName();
+	virtual string getFullName() const;
 	virtual const string &getSymbolKindName() const;
+	string getTypeNameKey() const;
 
 	/* Visitor pattern function to allow the scanner/generator/IR to dispatch functionality based on type. */
 	virtual DDR_RC acceptVisitor(const TypeVisitor &visitor);
@@ -75,6 +77,7 @@ public:
 	virtual vector<UDT *> *getSubUDTS();
 	virtual void renameFieldsAndMacros(const FieldOverride &fieldOverride, Type *replacementType);
 	virtual Type *getBaseType();
+	Type *getOpaqueType();
 
 	bool operator==(const Type & rhs) const;
 	virtual bool compareToClass(const ClassUDT &) const;

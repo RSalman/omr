@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 1991, 2015 IBM Corp. and others
+ * Copyright (c) 1991, 2018 IBM Corp. and others
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -210,13 +210,6 @@ MM_MemorySubSpaceSegregated::largestDesirableArraySpine()
 	return OMR_SIZECLASSES_MAX_SMALL_SIZE_BYTES;
 }
 #endif /* defined(OMR_GC_ARRAYLETS) */
-
-void
-MM_MemorySubSpaceSegregated::collect(MM_EnvironmentBase *env, MM_AllocateDescription *allocDescription)
-{
-	Assert_MM_unreachable();
-}
-
 
 void
 MM_MemorySubSpaceSegregated::abandonHeapChunk(void *addrBase, void *addrTop)

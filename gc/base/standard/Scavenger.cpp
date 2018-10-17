@@ -26,8 +26,9 @@
 #define OMR_SCAVENGER_TRACE_REMEMBERED_SET
 #define OMR_SCAVENGER_TRACE_BACKOUT
 #define OMR_SCAVENGER_TRACE_COPY
-#define OMR_SCAVENGER_TRACK_COPY_DISTANCE
 #endif
+
+#define OMR_SCAVENGER_TRACK_COPY_DISTANCE
 
 #include <math.h>
 
@@ -131,7 +132,7 @@ extern "C" {
 uintptr_t
 MM_Scavenger::getVMStateID()
 {
-	return J9VMSTATE_GC_COLLECTOR_SCAVENGER;
+	return OMRVMSTATE_GC_COLLECTOR_SCAVENGER;
 }
 
 void
@@ -3117,7 +3118,9 @@ MM_Scavenger::aliasToCopyCache(MM_EnvironmentStandard *env, GC_SlotObject *scann
 	 *
 	 * @NOTE this is likely too aggressive and should be relaxed.
 	 */
-	if (0 == _waitingCount) {
+
+	if (_waitingCount <=  _extensions->waitCountThreshold) {
+
 		/* Only alias if the scanCache != copyCache. IF the caches are the same there is no benefit
 		 * to aliasing. The checks afterwards will ensure that a very similar copy order will happen
 		 * if the copyCache changes from the currently aliased scan cache

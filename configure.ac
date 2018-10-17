@@ -492,6 +492,7 @@ fi
 OMRCFG_DEFINE_FLAG_OFF([OMR_OPT_CUDA])
 OMRCFG_DEFINE_FLAG_OFF([OMR_PORT_ALLOCATE_TOP_DOWN])
 OMRCFG_DEFINE_FLAG_OFF([OMR_PORT_ZOS_CEEHDLRSUPPORT])
+OMRCFG_DEFINE_FLAG_OFF([OMRPORT_OMRSIG_SUPPORT])
 
 OMRCFG_DEFINE_FLAG([OMRTHREAD_LIB_AIX],[1],
 	[AS_IF([test "$OMR_HOST_OS" = aix],
@@ -540,15 +541,12 @@ AS_IF([test "$enable_DDR" = yes -a "$cross_compiling" != "yes"],
 					[
 					# this should yield .../VC/bin/cl.exe or .../VC/bin/amd64/cl.exe
 					vc_bin_dir=$(AS_DIRNAME(["$VS_CL_PATH"]))
-					diasdk_dir="$vc_bin_dir/../../DIA SDK"
-					AS_IF([test -f "$diasdk_dir/include/dia2.h"]
-						[DIASDK_HOME="$(cygpath -a -w "$diasdk_dir")"],
-						[
-						diasdk_dir="$vc_bin_dir/../../../DIA SDK"
-						AS_IF([test -f "$diasdk_dir/include/dia2.h"],
-							[DIASDK_HOME="$(cygpath -a -w "$diasdk_dir")"]
-						)
-						]
+					diasdk_dir1="$vc_bin_dir/../../DIA SDK"
+					diasdk_dir2="$vc_bin_dir/../../../DIA SDK"
+					diasdk_dir3="$vc_bin_dir/../../../../../../../DIA SDK"
+					AS_IF([test -f "$diasdk_dir1/include/dia2.h"], [DIASDK_HOME="$(cygpath -a -w "$diasdk_dir1")"],
+						[test -f "$diasdk_dir2/include/dia2.h"], [DIASDK_HOME="$(cygpath -a -w "$diasdk_dir2")"],
+						[test -f "$diasdk_dir3/include/dia2.h"], [DIASDK_HOME="$(cygpath -a -w "$diasdk_dir3")"]
 					)
 					]
 				)

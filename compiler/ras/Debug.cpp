@@ -1774,11 +1774,6 @@ TR_Debug::getAutoName(TR::SymbolReference * symRef)
       else
          sprintf(name, "<%s " POINTER_PRINTF_FORMAT ">", symName, symRef->getSymbol());
       }
-   else if (symRef->getSymbol()->isAutoMarkerSymbol())
-       {
-       TR::AutomaticSymbol *symbol = symRef->getSymbol()->castToAutoMarkerSymbol();
-       sprintf(name, "<auto marker symbol " POINTER_PRINTF_FORMAT ": %s>", symbol, symbol->getName());
-       }
    else if (symRef->isTempVariableSizeSymRef())
       {
       TR_ASSERT(symRef->getSymbol()->isVariableSizeSymbol(),"symRef #%d must contain a variable size symbol\n",symRef->getReferenceNumber());
@@ -2781,7 +2776,7 @@ TR_Debug::printCommonDataMiningAnnotations(TR::FILE *pOutFile, TR::Instruction *
   }
 
 
-#if !defined(TR_TARGET_POWER) && !defined(TR_TARGET_ARM)
+#if !defined(TR_TARGET_POWER) && !defined(TR_TARGET_ARM) && !defined(TR_TARGET_ARM64)
 void
 TR_Debug::print(TR::FILE *pOutFile, TR::Instruction * inst)
    {
@@ -2813,6 +2808,14 @@ TR_Debug::print(TR::FILE *pOutFile, TR::Instruction * inst, const char *title)
 
 #if defined(TR_TARGET_ARM)
    if (TR::Compiler->target.cpu.isARM())
+      {
+      print(pOutFile, inst);
+      return;
+      }
+#endif
+
+#if defined(TR_TARGET_ARM64)
+   if (TR::Compiler->target.cpu.isARM64())
       {
       print(pOutFile, inst);
       return;
@@ -2875,9 +2878,6 @@ TR_Debug::print(TR::FILE *pOutFile, TR::list<TR::Snippet*> & snippetList, bool i
    if (pOutFile == NULL)
       return;
 
-   if (_comp->cg()->hasTargetAddressSnippets())
-      _comp->cg()->dumpTargetAddressSnippets(pOutFile);
-
    for (auto snippets = snippetList.begin(); snippets != snippetList.end(); ++snippets)
       {
       print(pOutFile, *snippets);
@@ -2893,9 +2893,6 @@ TR_Debug::print(TR::FILE *pOutFile, List<TR::Snippet> & snippetList, bool isWarm
    {
    if (pOutFile == NULL)
       return;
-
-   if (_comp->cg()->hasTargetAddressSnippets())
-      _comp->cg()->dumpTargetAddressSnippets(pOutFile);
 
    ListIterator<TR::Snippet> snippets(&snippetList);
    for (TR::Snippet * snippet = snippets.getFirst(); snippet; snippet = snippets.getNext())
@@ -3100,7 +3097,6 @@ TR_Debug::getRegisterKindName(TR_RegisterKinds rk)
       case TR_VSX_VECTOR:   return "VSX_VECTOR";
       case TR_GPR64: return "GPR64";
       case TR_SSR:   return "SSR";
-      case TR_AR:    return "AR";
       default:       return "??R";
       }
    }
@@ -3887,6 +3883,7 @@ TR_Debug::getRuntimeHelperName(int32_t index)
          case TR_divCheck:                  return "jitThrowArithmeticException";
          case TR_arrayStoreException:       return "jitThrowArrayStoreException";
          case TR_typeCheckArrayStore:       return "jitTypeCheckArrayStore";
+         case TR_readBarrier:               return "jitReadBarrier";
          case TR_writeBarrierStore:         return "jitWriteBarrierStore";
          case TR_writeBarrierStoreGenerational: return "jitWriteBarrierStoreGenerational";
          case TR_writeBarrierStoreGenerationalAndConcurrentMark: return "jitWriteBarrierStoreGenerationalAndConcurrentMark";
@@ -3948,8 +3945,7 @@ TR_Debug::getRuntimeHelperName(int32_t index)
          case TR_volatileWriteLong:         return "jitVolatileWriteLong";
          case TR_volatileReadDouble:        return "jitVolatileReadDouble";
          case TR_volatileWriteDouble:       return "jitVolatileWriteDouble";
-
-         case TR_referenceArrayCopy:        return "referenceArrayCopy";
+         case TR_referenceArrayCopy:        return "jitReferenceArrayCopy";
          }
       }
 #ifdef TR_TARGET_X86
@@ -3976,6 +3972,7 @@ TR_Debug::getRuntimeHelperName(int32_t index)
             case TR_X86interpreterUnresolvedClassFromStaticFieldGlue: return "interpreterUnresolvedClassFromStaticFieldGlue";
             case TR_X86interpreterUnresolvedStringGlue:               return "interpreterUnresolvedStringGlue";
             case TR_X86interpreterUnresolvedStaticFieldGlue:          return "interpreterUnresolvedStaticFieldGlue";
+            case TR_X86interpreterUnresolvedConstantDynamicGlue:      return "interpreterUnresolvedConstantDynamicGlue";
             case TR_X86interpreterUnresolvedStaticFieldSetterGlue:    return "interpreterUnresolvedStaticFieldSetterGlue";
             case TR_X86interpreterUnresolvedFieldGlue:                return "interpreterUnresolvedFieldGlue";
             case TR_X86interpreterUnresolvedFieldSetterGlue:          return "interpreterUnresolvedFieldSetterGlue";
@@ -4015,8 +4012,6 @@ TR_Debug::getRuntimeHelperName(int32_t index)
             case TR_IA32floatToLong:                                  return "__floatToLong";
             case TR_IA32floatToInt:                                   return "__floatToInt";
             case TR_IA32double2LongSSE:                               return "__SSEdouble2LongIA32";
-
-            case TR_IA32jitThrowCurrentException:                     return "_jitThrowCurrentException";
             case TR_IA32jitCollapseJNIReferenceFrame:                 return "_jitCollapseJNIReferenceFrame";
 
             case TR_IA32compressString:                               return "_compressString";
@@ -4030,9 +4025,6 @@ TR_Debug::getRuntimeHelperName(int32_t index)
             case TR_IA32samplingPatchCallSite:                        return "__samplingPatchCallSite";
             case TR_IA32countingPatchCallSite:                        return "__countingPatchCallSite";
             case TR_IA32induceRecompilation:                          return "__induceRecompilation";
-
-            case TR_IA32arrayCmp:                                     return "arraycmp";
-            case TR_IA32getTimeOfDay:                                 return "gettimeofday";
             }
          }
       else
@@ -4047,7 +4039,6 @@ TR_Debug::getRuntimeHelperName(int32_t index)
             case TR_AMD64icallVMprJavaSendVirtualL:                   return "_icallVMprJavaSendVirtualL";
             case TR_AMD64icallVMprJavaSendVirtualF:                   return "_icallVMprJavaSendVirtualF";
             case TR_AMD64icallVMprJavaSendVirtualD:                   return "_icallVMprJavaSendVirtualD";
-            case TR_AMD64jitThrowCurrentException:                    return "_jitThrowCurrentException";
             case TR_AMD64jitCollapseJNIReferenceFrame:                return "_jitCollapseJNIReferenceFrame";
 
             case TR_AMD64compressString:                               return "_compressString";
@@ -4061,7 +4052,6 @@ TR_Debug::getRuntimeHelperName(int32_t index)
             case TR_AMD64samplingPatchCallSite:                       return "__samplingPatchCallSite";
             case TR_AMD64countingPatchCallSite:                       return "__countingPatchCallSite";
             case TR_AMD64induceRecompilation:                         return "__induceRecompilation";
-            case TR_AMD64arrayCmp:                                    return "arraycmp";
             case TR_AMD64doAESENCDecrypt:                             return "doAESDecrypt";
             case TR_AMD64doAESENCEncrypt:                             return "doAESEncrypt";
             }
@@ -4089,6 +4079,7 @@ TR_Debug::getRuntimeHelperName(int32_t index)
          case TR_PPCinterpreterUnresolvedClassGlue:                return "_interpreterUnresolvedClassGlue";
          case TR_PPCinterpreterUnresolvedClassGlue2:               return "_interpreterUnresolvedClassGlue2";
          case TR_PPCinterpreterUnresolvedStringGlue:               return "_interpreterUnresolvedStringGlue";
+         case TR_PPCinterpreterUnresolvedConstantDynamicGlue:      return "_interpreterUnresolvedConstantDynamicGlue";
          case TR_PPCinterpreterUnresolvedStaticDataGlue:           return "_interpreterUnresolvedStaticDataGlue";
          case TR_PPCinterpreterUnresolvedStaticDataStoreGlue:      return "_interpreterUnresolvedStaticDataStoreGlue";
          case TR_PPCinterpreterUnresolvedInstanceDataGlue:         return "_interpreterUnresolvedInstanceDataGlue";
@@ -4234,6 +4225,7 @@ TR_Debug::getRuntimeHelperName(int32_t index)
          case TR_S390jitMethodIsSync:                              return "__jitMethodIsSync";
          case TR_S390jitResolveClass:                              return "__jitResolveClass";
          case TR_S390jitResolveField:                              return "__jitResolveField";
+         case TR_S390jitResolveConstantDynamicGlue:                return "_jitResolveConstantDynamic";
          case TR_S390jitResolveFieldSetter:                        return "__jitResolveFieldSetter";
          case TR_S390jitResolveInterfaceMethod:                    return "__jitResolveInterfaceMethod";
          case TR_S390jitResolveStaticField:                        return "__jitResolveStaticField";
@@ -4896,7 +4888,6 @@ TR_Debug::traceRegisterAssignment(TR::Instruction *instr, bool insertedByRA, boo
             const bool isHPR = _registerKindsToAssign & TR_HPR_Mask;
             const bool isVRF = _registerKindsToAssign & TR_VRF_Mask;
             const bool isFPR = _registerKindsToAssign & TR_FPR_Mask;
-            const bool isAR  = _registerKindsToAssign & TR_AR_Mask;
             const bool isX87 = _registerKindsToAssign & TR_X87_Mask;
 
             TR::RegisterIterator *gprIter = _comp->cg()->getGPRegisterIterator();
@@ -4947,18 +4938,6 @@ TR_Debug::traceRegisterAssignment(TR::Instruction *instr, bool insertedByRA, boo
                   printFullRegInfo(_file, vrf);
                   }
                trfprintf(_file, "</vrfs>\n");
-               }
-#endif
-#if defined(TR_TARGET_S390)
-            if (_registerKindsToAssign & TR_AR_Mask)
-               {
-               trfprintf(_file, "<ars>\n");
-               TR::RegisterIterator *iter = _cg->getARegisterIterator();
-               for (TR::Register *ar = iter->getFirst(); ar; ar = iter->getNext())
-                  {
-                  printFullRegInfo(_file, ar);
-                  }
-               trfprintf(_file, "</ars>\n");
                }
 #endif
             if (_registerKindsToAssign & TR_FPR_Mask)

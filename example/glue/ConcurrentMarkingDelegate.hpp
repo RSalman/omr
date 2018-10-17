@@ -198,19 +198,19 @@ public:
 	MMINLINE void signalThreadsToTraceStacks(MM_EnvironmentBase *env) { }
 
 	/**
-	 * Once concurrent tracing has started, mutator threads must dirty cards at the appropriate
-	 * write barrier(s) whenever a reference-value field is updated, until a GC cycle is started.
+	 * Once concurrent tracing has started, mutator threads must activate the appropriate
+	 * write barrier(s) to trigger whenever a reference-value field is updated, until a GC cycle is started.
 	 */
-	MMINLINE bool signalThreadsToDirtyCards(MM_EnvironmentBase *env)
+	MMINLINE bool signalThreadsToActivateWriteBarrier(MM_EnvironmentBase *env)
 	{
 		return true;
 	}
 
 	/**
 	 * This can be used to optimize the concurrent write barrier(s) by conditioning threads to stop
-	 * dirtying cards once a GC has started.
+	 * triggering barriers once a GC has started.
 	 */
-	MMINLINE void signalThreadsToStopDirtyingCards(MM_EnvironmentBase *env) { }
+	MMINLINE void signalThreadsToDeactivateWriteBarrier(MM_EnvironmentBase *env) { }
 
 	/**
 	 * Informational. Will be called when concurrent tracing has completed and card cleaning has started.

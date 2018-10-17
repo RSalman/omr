@@ -34,6 +34,7 @@ add_executable(comptest
 	ILValidatorTest.cpp
 	ArithmeticTest.cpp
 	ShiftAndRotateTest.cpp
+	SimplifierFoldAbsNegTest.cpp
 	SimplifierFoldAndTest.cpp
 	IfxcmpgeReductionTest.cpp
 	VectorTest.cpp
@@ -43,6 +44,7 @@ add_executable(comptest
 	LogicalTest.cpp
 	LinkageTest.cpp
 	BitPermuteTest.cpp
+	MaxMinTest.cpp
 )
 
 target_link_libraries(comptest

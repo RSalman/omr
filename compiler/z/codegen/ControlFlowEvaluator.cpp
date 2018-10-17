@@ -88,13 +88,6 @@ generateS390PackedCompareAndBranchOps(TR::Node * node,
                                       TR::InstOpCode::S390BranchCondition rBranchOpCond,
                                       TR::InstOpCode::S390BranchCondition &retBranchOpCond,
                                       TR::LabelSymbol *branchTarget = NULL);
-extern TR::Instruction *
-generateS390AggregateCompareAndBranchOps(TR::Node * node,
-                                         TR::CodeGenerator * cg,
-                                         TR::InstOpCode::S390BranchCondition fBranchOpCond,
-                                         TR::InstOpCode::S390BranchCondition rBranchOpCond,
-                                         TR::InstOpCode::S390BranchCondition &retBranchOpCond,
-                                         TR::LabelSymbol *branchTarget = NULL);
 
 //#define TRACE_EVAL
 #if defined(TRACE_EVAL)
@@ -917,13 +910,17 @@ lcmpHelper(TR::Node * node, TR::CodeGenerator * cg)
  */
 static TR::Register * maxMinHelper(TR::Node *node, TR::CodeGenerator *cg, bool isMax)
    {
-   TR::Register *registerA = cg->gprClobberEvaluate(node->getFirstChild());
+   TR_ASSERT_FATAL(cg->getS390ProcessorInfo()->supportsArch(TR_S390ProcessorInfo::TR_z196),
+      "cannot evaluate %s on z10 or below", node->getOpCode().getName());
+
+   TR::Register *registerA;
    TR::Register *registerB = cg->evaluate(node->getSecondChild());
    // Mask is 4 to pick b when a is Lower for max, 2 to pick b when a is higher for min
    const uint8_t mask = isMax ? 0x4 : 0x2;
 
    if (node->getOpCodeValue() == TR::imax || node->getOpCodeValue() == TR::imin)
       {
+      registerA = cg->gprClobberEvaluate(node->getFirstChild());
       generateRRInstruction(cg, TR::InstOpCode::CR, node, registerA, registerB);
       generateRRFInstruction(cg, TR::InstOpCode::LOCR, node, registerA, registerB, mask, true);
       }
@@ -931,6 +928,7 @@ static TR::Register * maxMinHelper(TR::Node *node, TR::CodeGenerator *cg, bool i
       {
       if (TR::Compiler->target.is64Bit() || cg->use64BitRegsOn32Bit())
          {
+         registerA = cg->gprClobberEvaluate(node->getFirstChild());
          generateRREInstruction(cg, TR::InstOpCode::CGR, node, registerA, registerB);
          generateRRFInstruction(cg, TR::InstOpCode::LOCGR, node, registerA, registerB, mask, true);
          }
@@ -938,19 +936,28 @@ static TR::Register * maxMinHelper(TR::Node *node, TR::CodeGenerator *cg, bool i
          {
          TR::LabelSymbol * done = TR::LabelSymbol::create(cg->trHeapMemory(),cg);
          TR::Instruction* cursor = NULL;
+         registerA = cg->evaluate(node->getFirstChild());
 
-         generateRRInstruction(cg, TR::InstOpCode::CR, node, registerA->getHighOrder(), registerB->getHighOrder());
-         generateRRFInstruction(cg, TR::InstOpCode::LOCR, node, registerA->getHighOrder(), registerB->getHighOrder(), mask, true);
-         generateRRFInstruction(cg, TR::InstOpCode::LOCR, node, registerA->getLowOrder(), registerB->getLowOrder(), mask, true);
-         cursor = generateS390BranchInstruction(cg, TR::InstOpCode::BRC, TR::InstOpCode::COND_BRNE, node, done);
-         cursor->setStartInternalControlFlow();
+         TR::Register *tempHigh = cg->allocateRegister();
+         TR::Register *tempLow = cg->allocateRegister();
+         TR::Register *tempReg = cg->allocateRegisterPair(tempLow, tempHigh);
 
-         generateRRInstruction(cg, TR::InstOpCode::CR, node, registerA->getLowOrder(), registerB->getLowOrder());
-         generateRRFInstruction(cg, TR::InstOpCode::LOCR, node, registerA->getHighOrder(), registerB->getHighOrder(), mask, true);
-         generateRRFInstruction(cg, TR::InstOpCode::LOCR, node, registerA->getLowOrder(), registerB->getLowOrder(), mask, true);
+         generateRRInstruction(cg, TR::InstOpCode::LR, node, tempLow, registerA->getLowOrder());
+         generateRRInstruction(cg, TR::InstOpCode::LR, node, tempHigh, registerA->getHighOrder());
 
-         cursor = generateS390LabelInstruction(cg, TR::InstOpCode::LABEL, node, done);
-         cursor->setEndInternalControlFlow();
+         generateRRInstruction(cg, TR::InstOpCode::CLR, node, tempLow, registerB->getLowOrder());
+         generateRRFInstruction(cg, TR::InstOpCode::LOCR, node, tempLow, registerB->getLowOrder(), mask, true);
+         generateRRFInstruction(cg, TR::InstOpCode::LOCR, node, tempHigh, registerB->getHighOrder(), mask, true);
+
+         generateRRInstruction(cg, TR::InstOpCode::CR, node, tempHigh, registerA->getHighOrder());
+         generateRRFInstruction(cg, TR::InstOpCode::LOCR, node, tempLow, registerA->getLowOrder(), mask, true);
+         generateRRFInstruction(cg, TR::InstOpCode::LOCR, node, tempHigh, registerA->getHighOrder(), mask, true);
+
+         generateRRInstruction(cg, TR::InstOpCode::CR, node, tempHigh, registerB->getHighOrder());
+         generateRRFInstruction(cg, TR::InstOpCode::LOCR, node, tempLow, registerB->getLowOrder(), mask, true);
+         generateRRFInstruction(cg, TR::InstOpCode::LOCR, node, tempHigh, registerB->getHighOrder(), mask, true);
+
+         registerA = tempReg;
          }
       }
    else

@@ -69,7 +69,7 @@ class MM_ObjectMap;
 class MM_ReferenceChainWalkerMarkMap;
 class MM_RememberedSetCardBucket;
 #if defined(OMR_GC_STACCATO)
-class MM_RememberedSetWorkPackets;
+class MM_RememberedSetSATB;
 #endif /* OMR_GC_STACCATO */
 #if defined(OMR_GC_MODRON_SCAVENGER)
 class MM_Scavenger;
@@ -162,6 +162,7 @@ public:
 	bool _forceOptionConcurrentMark; /**< true if Concurrent Mark option is forced in command line */
 	bool _forceOptionConcurrentSweep; /**< true if Concurrent Sweep option is forced in command line */
 	bool _forceOptionLargeObjectArea; /**< true if Large Object Area option is forced in command line */
+	bool _forceOptionWriteBarrierSATB; /**< Set with -Xgc:snapshotAtTheBeginningBarrier */
 
 	MM_ConfigurationOptions()
 		: MM_BaseNonVirtual()
@@ -170,6 +171,7 @@ public:
 		, _forceOptionConcurrentMark(false)
 		, _forceOptionConcurrentSweep(false)
 		, _forceOptionLargeObjectArea(false)
+		, _forceOptionWriteBarrierSATB(false)
 	{
 		_typeId = __FUNCTION__;
 	}
@@ -250,7 +252,7 @@ public:
 	MM_SublistPool rememberedSet;
 #endif /* OMR_GC_MODRON_SCAVENGER */
 #if defined(OMR_GC_STACCATO)
-	MM_RememberedSetWorkPackets* staccatoRememberedSet; /**< The Staccato remembered set used for the write barrier */
+	MM_RememberedSetSATB* sATBBarrierRememberedSet; /**< The snapshot at the beginning barrier remembered set used for the write barrier */
 #endif /* OMR_GC_STACCATO */
 	ModronLnrlOptions lnrlOptions;
 
@@ -385,6 +387,7 @@ public:
 	uintptr_t fvtest_forceReferenceChainWalkerMarkMapCommitFailure; /**< Force failure at Reference Chain Walker Mark Map commit operation */
 	uintptr_t fvtest_forceReferenceChainWalkerMarkMapCommitFailureCounter; /**< Force failure at Reference Chain Walker Mark Map commit operation counter */
 
+	uintptr_t fvtest_forceCopyForwardHybridRatio; /**< Force to run CopyForward Hybrid mode value = 1-100 the percentage of non evacuated eden regions */
 	uintptr_t softMx; /**< set through -Xsoftmx, depending on GC policy this number might differ from available heap memory, use MM_Heap::getActualSoftMxSize for calculations */
 
 #if defined(OMR_GC_BATCH_CLEAR_TLH)
@@ -427,6 +430,7 @@ public:
 	uintptr_t scvArraySplitMinimumAmount; /**< minimum number of elements to split array scanning work in the scavenger */
 	uintptr_t scavengerScanCacheMaximumSize; /**< maximum size of scan and copy caches before rounding, zero (default) means calculate them */
 	uintptr_t scavengerScanCacheMinimumSize; /**< minimum size of scan and copy caches before rounding, zero (default) means calculate them */
+	uintptr_t waitCountThreshold;
 	bool tiltedScavenge;
 	bool debugTiltedScavenge;
 	double survivorSpaceMinimumSizeRatio;
@@ -695,6 +699,7 @@ public:
 	MM_UserSpecifiedParameterUDATA tarokMinimumGMPWorkTargetBytes; /**< Minimum used for GMP work targets.  This avoids the low-scan-rate -> low GMP work target -> low scan-rate feedback loop. */
 	double tarokConcurrentMarkingCostWeight; /**< How much we weigh concurrentMarking into our GMP scan time cost calculations */
 	bool tarokAutomaticDefragmentEmptinessThreshold; /**< Whether we should use the automatically derived value for tarokDefragmentEmptinessThreshold or not */
+	bool tarokEnableCopyForwardHybrid; /**< Enable CopyForward Hybrid mode */
 #endif /* defined (OMR_GC_VLHGC) */
 
 /* OMR_GC_VLHGC (in for all -- see 82589) */
@@ -724,7 +729,6 @@ public:
 #if defined(OMR_GC_IDLE_HEAP_MANAGER)
 	uintptr_t idleMinimumFree;   /**< percentage of free heap to be retained as committed, default=0 for gencon, complete tenture free memory will be decommitted */
 	uintptr_t lastGCFreeBytes;  /**< records the free memory size from last Global GC cycle */
-	uintptr_t gcOnIdleRatio; /**< the percentage of allocation since the last GC allocation determines the invocation of global GC, default global GC is invoked if allocation is > 20% */
 	bool gcOnIdle; /**< Enables releasing free heap pages if true while systemGarbageCollect invoked with IDLE GC code, default is false */
 	bool compactOnIdle; /**< Forces compaction if global GC executed while VM Runtime State set to IDLE, default is false */
 #endif
@@ -1231,7 +1235,7 @@ public:
 		, gcmetadataPageSize(0)
 		, gcmetadataPageFlags(OMRPORT_VMEM_PAGE_FLAG_NOT_USED)
 #if defined(OMR_GC_STACCATO)
-		, staccatoRememberedSet(NULL)
+		, sATBBarrierRememberedSet(NULL)
 #endif /* OMR_GC_STACCATO */
 
 		, heapBaseForBarrierRange0(NULL)
@@ -1331,6 +1335,7 @@ public:
 		, fvtest_forceMarkMapDecommitFailureCounter(0)
 		, fvtest_forceReferenceChainWalkerMarkMapCommitFailure(0)
 		, fvtest_forceReferenceChainWalkerMarkMapCommitFailureCounter(0)
+		, fvtest_forceCopyForwardHybridRatio(0)
 		, softMx(0) /* softMx only set if specified */
 		, batchClearTLH(0)
 		, gcThreadCountForced(false)
@@ -1362,6 +1367,7 @@ public:
 		, scvArraySplitMinimumAmount(DEFAULT_ARRAY_SPLIT_MINIMUM_SIZE)
 		, scavengerScanCacheMaximumSize(DEFAULT_SCAN_CACHE_MAXIMUM_SIZE)
 		, scavengerScanCacheMinimumSize(DEFAULT_SCAN_CACHE_MINIMUM_SIZE)
+		, waitCountThreshold(0)
 		, tiltedScavenge(true)
 		, debugTiltedScavenge(false)
 		, survivorSpaceMinimumSizeRatio(0.10)
@@ -1581,6 +1587,7 @@ public:
 		, tarokMinimumGMPWorkTargetBytes()
 		, tarokConcurrentMarkingCostWeight(0.05)
 		, tarokAutomaticDefragmentEmptinessThreshold(false)
+		, tarokEnableCopyForwardHybrid(false)
 #endif /* defined (OMR_GC_VLHGC) */
 		, tarokEnableExpensiveAssertions(false)
 		, sweepPoolManagerAddressOrderedList(NULL)
@@ -1599,7 +1606,6 @@ public:
 #if defined(OMR_GC_IDLE_HEAP_MANAGER)
 		, idleMinimumFree(0)
 		, lastGCFreeBytes(0)
-		, gcOnIdleRatio(20)
 		, gcOnIdle(false)
 		, compactOnIdle(false)
 #endif

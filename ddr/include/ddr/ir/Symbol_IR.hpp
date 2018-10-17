@@ -47,6 +47,18 @@ class NamespaceUDT;
 class TypeReplaceVisitor;
 
 class Symbol_IR {
+private:
+	OMRPortLibrary * const _portLibrary;
+
+	struct OverrideInfo {
+		set<string> opaqueTypeNames;
+		vector<FieldOverride> fieldOverrides;
+
+		OverrideInfo();
+	};
+
+	DDR_RC readOverridesFile(const char *overridesFile, OverrideInfo *overrideInfo);
+
 public:
 	vector<Type *> _types;
 	/* Keep a set of names of structures already printed, to avoid printing duplicates in the superset.
@@ -58,14 +70,28 @@ public:
 	set<string> _fullTypeNames;
 	set<Type *> _typeSet;
 	unordered_map<string, set<Type *> > _typeMap;
-	/* Types with names in this set are treated as opaque and not expanded. */
-	set<string> _opaqueTypeNames;
 
-	Symbol_IR() : _types(), _fullTypeNames(), _typeSet(), _typeMap(), _opaqueTypeNames() {}
+	explicit Symbol_IR(OMRPortLibrary *portLibrary)
+		: _portLibrary(portLibrary)
+		, _types()
+		, _fullTypeNames()
+		, _typeSet()
+		, _typeMap()
+	{
+	}
+
+	explicit Symbol_IR(Symbol_IR *other)
+		: _portLibrary(other->_portLibrary)
+		, _types()
+		, _fullTypeNames()
+		, _typeSet()
+		, _typeMap()
+	{
+	}
+
 	~Symbol_IR();
 
-	DDR_RC applyOverridesFile(OMRPortLibrary *portLibrary, const char *overridesFile);
-	DDR_RC applyOverridesList(OMRPortLibrary *portLibrary, const char *overridesListFile);
+	DDR_RC applyOverridesList(const char *overridesListFile);
 	void removeDuplicates();
 	DDR_RC mergeIR(Symbol_IR *other);
 

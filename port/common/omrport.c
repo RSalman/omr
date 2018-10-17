@@ -221,6 +221,7 @@ static OMRPortLibrary MasterPortLibraryTable = {
 	omrsig_map_portlib_signal_to_os_signal, /* sig_map_portlib_signal_to_os_signal */
 	omrsig_register_os_handler, /* sig_register_os_handler */
 	omrsig_is_master_signal_handler, /* sig_is_master_signal_handler */
+	omrsig_is_signal_ignored, /* sig_is_signal_ignored */
 	omrsig_info, /* sig_info */
 	omrsig_info_count, /* sig_info_count */
 	omrsig_set_options, /* sig_set_options */
@@ -269,6 +270,9 @@ static OMRPortLibrary MasterPortLibraryTable = {
 	omrsysinfo_cgroup_are_subsystems_enabled, /* sysinfo_cgroup_are_subsystems_enabled */
 	omrsysinfo_cgroup_get_memlimit, /* sysinfo_cgroup_get_memlimit */
 	omrsysinfo_cgroup_is_memlimit_set, /* sysinfo_cgroup_is_memlimit_set */
+	omrsysinfo_cgroup_get_handle_subsystem_file, /* sysinfo_cgroup_get_handle_subsystem_file */
+	omrsysinfo_get_cgroup_subsystem_list, /* sysinfo_get_cgroup_entry_list */
+	omrsysinfo_is_running_in_container, /* sysinfo_is_running_in_container */
 	omrport_init_library, /* port_init_library */
 	omrport_startup_library, /* port_startup_library */
 	omrport_create_library, /* port_create_library */

@@ -97,6 +97,15 @@ DwarfScanner::getSourcelist(Dwarf_Die die)
 	_fileNamesTable = NULL;
 	_fileNameCount = 0;
 
+	/* Get the dwarf source file names. */
+	if (DW_DLV_ERROR == dwarf_srcfiles(die, &_fileNamesTable, &_fileNameCount, &error)) {
+		ERRMSG("Failed to get list of source files: %s\n", dwarf_errmsg(error));
+		goto Done;
+	} else if (_fileNameCount < 0) {
+		ERRMSG("List of source files has negative length: %lld\n", _fileNameCount);
+		goto Done;
+	}
+
 	if (!hasAttr) {
 		/* The DIE didn't have a compilationDirectory attribute so we can skip
 		 * over getting the absolute paths from the relative paths.  AIX does
@@ -104,15 +113,6 @@ DwarfScanner::getSourcelist(Dwarf_Die die)
 		 */
 		goto Done;
 	} else {
-		/* Get the dwarf source file names. */
-		if (DW_DLV_ERROR == dwarf_srcfiles(die, &_fileNamesTable, &_fileNameCount, &error)) {
-			ERRMSG("Failed to get list of source files: %s\n", dwarf_errmsg(error));
-			goto Done;
-		} else if (_fileNameCount < 0) {
-			ERRMSG("List of source files has negative length: %lld\n", _fileNameCount);
-			goto Done;
-		}
-
 		/* Get the CU directory. */
 		if (DW_DLV_ERROR == dwarf_attr(die, DW_AT_comp_dir, &attr, &error)) {
 			ERRMSG("Getting compilation directory attribute: %s\n", dwarf_errmsg(error));
@@ -463,10 +463,10 @@ DwarfScanner::getTypeInfo(Dwarf_Die die, Dwarf_Die *dieOut, string *typeName, Mo
 							break;
 						}
 						/* New array length is upperBound + 1. */
-						modifiers->_arrayLengths.push_back(upperBound + 1);
+						modifiers->addArrayDimension(upperBound + 1);
 					} else {
 						/* Arrays declared as "[]" have no size attributes. */
-						modifiers->_arrayLengths.push_back(0);
+						modifiers->addArrayDimension(0);
 					}
 				} while (DDR_RC_OK == getNextSibling(&child));
 				dwarf_dealloc(_debug, child, DW_DLA_DIE);
@@ -673,7 +673,7 @@ DwarfScanner::addDieToIR(Dwarf_Die die, Dwarf_Half tag, NamespaceUDT *outerUDT, 
 
 	rc = getOrCreateNewType(die, tag, &newType, outerUDT, &isNewType);
 
-	if ((DDR_RC_OK == rc) && isNewType) {
+	if ((DDR_RC_OK == rc) && isNewType && NULL == outerUDT) {
 		rc = blackListedDie(die, &dieBlackListed);
 	}
 
@@ -1261,7 +1261,7 @@ DwarfScanner::traverse_cu_in_debug_section(Symbol_IR *ir)
 
 	/* Go over each cu header. */
 	while (DDR_RC_OK == rc) {
-		Symbol_IR newIR;
+		Symbol_IR newIR(ir);
 		_typeOffsetMap.clear();
 		_ir = &newIR;
 
@@ -1355,7 +1355,7 @@ DwarfScanner::startScan(OMRPortLibrary *portLibrary, Symbol_IR *ir, vector<strin
 	/* Read list of debug files to scan from the input file. */
 	for (vector<string>::iterator it = debugFiles->begin(); it != debugFiles->end(); ++it) {
 		const string & debugFile = *it;
-		Symbol_IR newIR;
+		Symbol_IR newIR(ir);
 		rc = scanFile(portLibrary, &newIR, debugFile.c_str());
 		if (DDR_RC_OK != rc) {
 			break;
