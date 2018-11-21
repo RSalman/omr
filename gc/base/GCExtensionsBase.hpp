@@ -786,8 +786,15 @@ public:
 	{
 		if (isStandardGC()) {
 #if defined(OMR_GC_MODRON_SCAVENGER)
-			return static_cast<MM_SublistPool>(rememberedSet).countElements();
-#else
+			uintptr_t count = static_cast<MM_SublistPool>(rememberedSet).countElements();
+			uintptr_t temp = 100000000; 
+			if(count >= temp){
+				OMRPORT_ACCESS_FROM_OMRVM(_omrVM);
+				omrtty_printf("[getRememberedCount] countElements: %zu temp: %zu\n", count, temp);
+			}
+			
+			return count;
+#else 
 			return 0;
 #endif /* OMR_GC_MODRON_SCAVENGER */
 		} else {

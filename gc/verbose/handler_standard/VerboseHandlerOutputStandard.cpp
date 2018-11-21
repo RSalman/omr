@@ -915,7 +915,7 @@ MM_VerboseHandlerOutputStandard::outputMemoryInfoInnerStanza(MM_EnvironmentBase 
 	outputMemoryInfoInnerStanzaInternal(env, indent, statsBase);
 
 	if (stats->_scavengerEnabled) {
-		writer->formatAndOutput(env, indent, "<remembered-set count=\"%zu\" />", stats->_rememberedSetCount);
+		writer->formatAndOutput(env, indent, "<remembered-set count=\"%zu\" />", stats->_rememberedSetCount);//grep 'getRememberedCount\|remembered-set' tests.log 
 	}
 }
 

@@ -50,6 +50,7 @@ MM_SublistPool::initialize(MM_EnvironmentBase *env, OMR::GC::AllocationCategory:
 {
 	memset(this, 0, sizeof(*this));
 	_allocCategory = category;
+	_omrVM = env->getOmrVM();
 	return (!omrthread_monitor_init_with_name(&_mutex, 0, "MM_SublistPool"));
 }
 
@@ -397,7 +398,7 @@ MM_SublistPool::clear(MM_EnvironmentBase *env)
  */
 uintptr_t
 MM_SublistPool::countElements()
-{	
+{ 
 	return _count;
 }
 

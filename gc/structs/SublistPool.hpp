@@ -66,6 +66,8 @@ private:
 	
 	MM_SublistPuddle *_previousList; /**< A list of the non-empty puddles when #startProcessingSublist() was called */
 	
+	OMR_VM *_omrVM;
+	
 protected:
 public:
 
@@ -109,7 +111,7 @@ public:
 
 	void compact(MM_EnvironmentBase *env);
 	void clear(MM_EnvironmentBase *env);
-	
+	 
 	/**
 	 * Prepare to process this sublist by moving all of its non-empty puddles onto
 	 * the list of previous puddles. The puddles may be retrieved by calling #popPreviousPuddle().
@@ -136,6 +138,7 @@ public:
 		, _count(0)
 		, _allocCategory(OMR::GC::AllocationCategory::OTHER)
 		, _previousList(NULL)
+		, _omrVM(NULL) 
 	{}
 
 	friend class GC_SublistIterator;
