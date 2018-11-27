@@ -55,6 +55,7 @@ public:
 		_returnedFilledSlot(false)
 	{};
 
+	bool countPuddle(uintptr_t offset);
 	void *nextSlot();
 	void removeSlot();
 };

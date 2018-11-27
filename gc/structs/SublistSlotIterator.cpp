@@ -33,6 +33,24 @@
 #include "SublistPool.hpp"
 #include "SublistPuddle.hpp"
 
+#include "ModronAssertions.h"
+
+
+
+bool
+GC_SublistSlotIterator::countPuddle(uintptr_t offset){
+	Assert_MM_true(_puddle->_listBase == _scanPtr);
+
+	uintptr_t *checkSlot = _scanPtr + offset;
+
+	if(0 == *checkSlot) {
+		return false;
+	}
+
+	return true;
+}
+
+
 
 /**
  * Return the next sublist slot.

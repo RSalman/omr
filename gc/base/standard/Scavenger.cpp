@@ -29,6 +29,8 @@
 #define OMR_SCAVENGER_TRACK_COPY_DISTANCE
 #endif
 
+//#define ENABLE_RS_ASSERT
+
 #include <math.h>
 
 #include "omrcfg.h"
@@ -127,6 +129,8 @@ extern "C" {
 #endif /* OMR_GC_MODRON_CONCURRENT_MARK */
 }
 
+
+const bool enableAssert = false;
 
 uintptr_t
 MM_Scavenger::getVMStateID()
@@ -2091,6 +2095,11 @@ MM_Scavenger::completeScan(MM_EnvironmentStandard *env)
 	 */
 	bool backOutRaisedThisScanCycle = isBackOutFlagRaised() && (doneIndex == _backOutDoneIndex);
 
+	if (env->_currentTask->synchronizeGCThreadsAndReleaseMaster(env, UNIQUE_ID)) {
+		validateRS(env);
+		env->_currentTask->releaseSynchronizedGCThreads(env);
+	}
+
 	Assert_MM_true(backOutRaisedThisScanCycle || (0 == env->_scavengerRememberedSet.count));
 
 	return !backOutRaisedThisScanCycle;
@@ -2117,6 +2126,11 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 
 	rootScanner.scanRoots(env);
 
+	if (env->_currentTask->synchronizeGCThreadsAndReleaseMaster(env, UNIQUE_ID)) {
+		Assert_MM_true(validateRS(env));
+		env->_currentTask->releaseSynchronizedGCThreads(env);
+	}
+
 	if(completeScan(env)) {
 		if (_rescanThreadsForRememberedObjects) {
 			rootScanner.rescanThreadSlots(env);
@@ -2129,6 +2143,13 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 	addCopyCachesToFreeList(env);
 	abandonSurvivorTLHRemainder(env);
 	abandonTenureTLHRemainder(env, true);
+
+
+	//if (env->_currentTask->synchronizeGCThreadsAndReleaseMaster(env, UNIQUE_ID)) {
+	//	Assert_MM_true(validateRS(env));
+	//	env->_currentTask->releaseSynchronizedGCThreads(env);
+	//}
+
 
 	/* If -Xgc:fvtest=forceScavengerBackout has been specified, set backout flag every 3rd scavenge */
 	if(_extensions->fvtest_forceScavengerBackout) {
@@ -2548,9 +2569,20 @@ MM_Scavenger::pruneRememberedSetList(MM_EnvironmentStandard *env)
 						Trc_MM_ParallelScavenger_scavengeRememberedSet_keepingRememberedObject(env->getLanguageVMThread(), objectPtr, _extensions->objectModel.getRememberedBits(objectPtr));
 					}
 				}
+
+
+
+
+
 			} /* while non-null slots */
 		}
 	}
+
+#if defined(ENABLE_RS_ASSERT)
+	Assert_MM_true(validateRS(env));
+#endif
+
+
 #if defined(OMR_SCAVENGER_TRACE_REMEMBERED_SET)
 	omrtty_printf("{SCAV: End prune remembered set list; count = %lld}\n", _extensions->rememberedSet.countElements());
 #endif /* OMR_SCAVENGER_TRACE_REMEMBERED_SET */
@@ -2621,10 +2653,18 @@ MM_Scavenger::scavengeRememberedSetListIndirect(MM_EnvironmentStandard *env)
 			} else {
 				remSetSlotIterator.removeSlot();
 			}
+
+
+
+
 		}
 
 		Trc_MM_ParallelScavenger_scavengeRememberedSetList_donePuddle(env->getLanguageVMThread(), puddle, numElements);
 	}
+#if defined(ENABLE_RS_ASSERT)
+	Assert_MM_true(validateRS(env));
+#endif
+
 
 	Trc_MM_ParallelScavenger_scavengeRememberedSetList_Exit(env->getLanguageVMThread());
 }
@@ -2677,6 +2717,11 @@ MM_Scavenger::scavengeRememberedSetList(MM_EnvironmentStandard *env)
 	}
 
 	Trc_MM_ParallelScavenger_scavengeRememberedSetList_Exit(env->getLanguageVMThread());
+
+#if defined(ENABLE_RS_ASSERT)
+	Assert_MM_true(validateRS(env));
+#endif
+
 }
 
 /* NOTE - only  scavengeRememberedSetOverflow ends with a sync point.
@@ -3512,8 +3557,16 @@ MM_Scavenger::processRememberedSetInBackout(MM_EnvironmentStandard *env)
 						fixupObjectScan(env, objectPtr);
 					}
 				}
+
+
+
 			}
 		}
+
+#if defined(ENABLE_RS_ASSERT)
+	Assert_MM_true(validateRS(env));
+#endif
+
 	} else
 #endif /* OMR_GC_CONCURRENT_SCAVENGER */
 	{
@@ -3552,6 +3605,11 @@ MM_Scavenger::processRememberedSetInBackout(MM_EnvironmentStandard *env)
 			}
 		}
 	}
+
+#if defined(ENABLE_RS_ASSERT)
+	Assert_MM_true(validateRS(env));
+#endif
+
 }
 
 void
@@ -3827,6 +3885,8 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 
 	reportGCIncrementEnd(env);
 	reportGCEnd(env);
+	Assert_MM_true(validateRS(env));
+
 	if (lastIncrement) {
 		reportGCCycleEnd(env);
 		if (_extensions->processLargeAllocateStats) {
@@ -3842,6 +3902,62 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 	}
 
 	Trc_MM_Scavenger_masterThreadGarbageCollect_Exit(env->getLanguageVMThread());
+}
+
+bool
+MM_Scavenger::validateRS(MM_EnvironmentStandard *env){
+
+	//uintptr_t totalPuddleConsumedSize = 0;
+
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+
+	//uintptr_t RS_count = _extensions->getRememberedCount();
+//	omrtty_printf("{SCAV: RS_count [%i] }\n", RS_count);
+
+//	MM_SublistPuddle *puddle;
+
+//	GC_SublistIterator remSetIterator(&(_extensions->rememberedSet));
+
+//	while((puddle = remSetIterator.nextList()) != NULL) {
+		//uintptr_t puddleConsumedSize = puddle->consumedSize();
+		//totalPuddleConsumedSize += puddleConsumedSize;
+
+//		uintptr_t totalSize = puddle->totalSize() / 8;
+
+//		omrtty_printf("{SCAV: totalSize:[%i] totalSize / 8: [%i] _size: [%i]  }\n", puddle->totalSize(), totalSize, puddle->_size);
+//	}
+
+//	omrtty_printf("{SCAV: totalPuddleConsumedSize [%i] }\n", totalPuddleConsumedSize);
+
+	//uintptr_t RS_count_calc = totalPuddleConsumedSize / 8;
+
+	//return RS_count_calc == RS_count;
+	//return true;
+
+	MM_SublistPuddle *puddle;
+	uintptr_t RS_count = _extensions->getRememberedCount();
+	uintptr_t RS_totalPuddleSlots = 0;
+	GC_SublistIterator remSetIterator(&(_extensions->rememberedSet));
+	while((puddle = remSetIterator.nextList()) != NULL) {
+		GC_SublistSlotIterator remSetSlotIterator(puddle);
+		uintptr_t numberSlots = puddle->totalSize() / 8;
+
+		for(uintptr_t i = 0; i < numberSlots; i++){
+			if(remSetSlotIterator.countPuddle(i)){
+				RS_totalPuddleSlots++;
+			}
+		}
+	}
+
+	omrtty_printf("{SCAV: RS_totalPuddleSlots:[%i] RS_count: [%i]}\n", RS_totalPuddleSlots, RS_count);
+
+	if (RS_totalPuddleSlots != RS_count){
+		omrtty_printf("{SCAV: MISMATCH RS_totalPuddleSlots:[%i] RS_count: [%i]}\n", RS_totalPuddleSlots, RS_count);
+	}
+
+	return RS_totalPuddleSlots == RS_count;
+
+	//return true;
 }
 
 void
