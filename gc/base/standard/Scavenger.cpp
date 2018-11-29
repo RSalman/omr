@@ -2105,14 +2105,14 @@ MM_Scavenger::completeScan(MM_EnvironmentStandard *env)
 
 	if (env->_currentTask->synchronizeGCThreadsAndReleaseMaster(env, UNIQUE_ID)) {
 
-	//	omrtty_printf("{SCAV: CompleteScan: added: [%i], flushed [%i] known unflushed: [%i]}\n", _RSTotalcount, _RSTotalFlushed, _RSTotalUnFlushedKnown);
-	//	omrtty_printf("After CompleteScan:   ");
+		omrtty_printf("{SCAV: CompleteScan: added: [%i], flushed [%i] known unflushed: [%i]}\n", _RSTotalcount, _RSTotalFlushed, _RSTotalUnFlushedKnown);
+		omrtty_printf("After CompleteScan:   ");
 		_RSTotalcount = 0;
 		_RSTotalFlushed = 0;
 		_RSTotalUnFlushedKnown = 0;
-		//if(!validateRS(env)){
-		//	omrtty_printf("{SCAV: CompleteScan FAIL}\n");
-		//}
+		if(!validateRS(env)){
+			omrtty_printf("{SCAV: CompleteScan FAIL}\n");
+		}
 
 		env->_currentTask->releaseSynchronizedGCThreads(env);
 	}
@@ -2144,8 +2144,8 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 	rootScanner.scanRoots(env);
 
 	if (env->_currentTask->synchronizeGCThreadsAndReleaseMaster(env, UNIQUE_ID)) {
-		//OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
-//		omrtty_printf("Before CompleteScan:    " );
+		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+		omrtty_printf("Before CompleteScan:    " );
 		Assert_MM_true(validateRS(env));
 		env->_currentTask->releaseSynchronizedGCThreads(env);
 	}
@@ -3626,9 +3626,8 @@ MM_Scavenger::completeBackOut(MM_EnvironmentStandard *env)
 	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 #endif /* OMR_SCAVENGER_TRACE_BACKOUT */
 
-	/* Ensure we've pushed all references from buffers out to the lists */
-	_cli->scavenger_flushReferenceObjects(env);
-	flushRememberedSet(env);
+	/* Ensure we've pushed all references from buffers out to the lists and flushed fragments*/
+	flushBuffersForGetNextScanCache(env);
 
 	/* Must synchronize to be sure all private caches have been flushed */
 	if (env->_currentTask->synchronizeGCThreadsAndReleaseMaster(env, UNIQUE_ID)) {
@@ -3907,18 +3906,18 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 
 bool
 MM_Scavenger::validateRS(MM_EnvironmentStandard *env){
-	//OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 
 	MM_SublistPuddle *puddle;
 	uintptr_t RS_count = _extensions->getRememberedCount();
 	uintptr_t RS_totalPuddleSlots = 0;
-//	uintptr_t totalPuddleConsumedSize = 0;
+	uintptr_t totalPuddleConsumedSize = 0;
 
 	GC_SublistIterator remSetIterator(&(_extensions->rememberedSet));
 	while((puddle = remSetIterator.nextList()) != NULL) {
 
-//		uintptr_t puddleConsumedSize = puddle->consumedSize();
-//		totalPuddleConsumedSize += puddleConsumedSize;
+		uintptr_t puddleConsumedSize = puddle->consumedSize();
+		totalPuddleConsumedSize += puddleConsumedSize;
 
 		GC_SublistSlotIterator remSetSlotIterator(puddle);
 		uintptr_t numberSlots = puddle->totalSize() / 8;
@@ -3930,17 +3929,15 @@ MM_Scavenger::validateRS(MM_EnvironmentStandard *env){
 		}
 	}
 
-//	uintptr_t RS_count_ConsumedSize = totalPuddleConsumedSize / 8;
+	uintptr_t RS_count_ConsumedSize = totalPuddleConsumedSize / 8;
 
-//	omrtty_printf("{SCAV: RS_totalPuddleSlots:[%i] RS_count: [%i] \t *RS_count_ConsumedSize[%i]*}\n", RS_totalPuddleSlots, RS_count, RS_count_ConsumedSize);
+	omrtty_printf("{SCAV: RS_totalPuddleSlots:[%i] RS_count: [%i] \t *RS_count_ConsumedSize[%i]*}\n", RS_totalPuddleSlots, RS_count, RS_count_ConsumedSize);
 
-//	if(RS_totalPuddleSlots != RS_count){
-//		omrtty_printf("{SCAV: SHOULD ASSERT}\n");
-//	}
+	if(RS_totalPuddleSlots != RS_count){
+		omrtty_printf("{SCAV: SHOULD ASSERT}\n");
+	}
 
 	return RS_totalPuddleSlots == RS_count;
-
-	//return true;
 }
 
 void
