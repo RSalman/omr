@@ -108,6 +108,12 @@ private:
 	uintptr_t _waitingCountAliasThreshold; /**< Only alias a copy cache IF the number of threads waiting hasn't reached the threshold*/
 	volatile uintptr_t _waitingCount; /**< count of threads waiting  on scan cache queues (blocked via _scanCacheMonitor); threads never wait on _freeCacheMonitor */
 	uintptr_t _cacheLineAlignment; /**< The number of bytes per cache line which is used to determine which boundaries in memory represent the beginning of a cache line */
+	
+	uintptr_t _RSTotalcount;
+	uintptr_t _RSTotalFlushed;
+	uintptr_t _RSTotalUnFlushedKnown; 
+	
+	
 	volatile bool _rescanThreadsForRememberedObjects; /**< Indicates that thread-referenced objects were tenured and threads must be rescanned */
 
 	volatile uintptr_t _backOutDoneIndex; /**< snapshot of _doneIndex, when backOut was detected */
@@ -406,7 +412,7 @@ public:
 
 	void reportGCStart(MM_EnvironmentStandard *env);
 	void reportGCEnd(MM_EnvironmentStandard *env);
-	bool validateRS(MM_EnvironmentStandard *env);
+	bool validateRS(MM_EnvironmentStandard *env) ;
 	void reportGCIncrementStart(MM_EnvironmentStandard *env);
 	void reportGCIncrementEnd(MM_EnvironmentStandard *env);
 	void reportScavengeStart(MM_EnvironmentStandard *env);
@@ -802,6 +808,9 @@ public:
 		, _waitingCountAliasThreshold(0)
 		, _waitingCount(0)
 		, _cacheLineAlignment(0)
+		,_RSTotalcount(0)
+		,_RSTotalFlushed(0)
+		,_RSTotalUnFlushedKnown(0)
 #if !defined(OMR_GC_CONCURRENT_SCAVENGER)
 		, _rescanThreadsForRememberedObjects(false)
 #endif
