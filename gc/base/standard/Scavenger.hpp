@@ -412,11 +412,7 @@ public:
 
 	void reportGCStart(MM_EnvironmentStandard *env);
 	void reportGCEnd(MM_EnvironmentStandard *env);
-<<<<<<< HEAD
-	bool validateRS(MM_EnvironmentStandard *env) ;
-=======
 	bool validateRS(MM_EnvironmentStandard *env);
->>>>>>> 1d1e9a5e5937d2ad58e2fd03f3163b33ed2dd4b9
 	void reportGCIncrementStart(MM_EnvironmentStandard *env);
 	void reportGCIncrementEnd(MM_EnvironmentStandard *env);
 	void reportScavengeStart(MM_EnvironmentStandard *env);

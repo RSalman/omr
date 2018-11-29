@@ -43,15 +43,12 @@ GC_SublistSlotIterator::countPuddle(uintptr_t offset){
 
 	uintptr_t *checkSlot = _scanPtr + offset;
 
-<<<<<<< HEAD
 	if(checkSlot > _puddle->_listCurrent){
 		if(0 != *checkSlot) {
 			Assert_MM_unreachable();
 		}
 	}
 
-=======
->>>>>>> 1d1e9a5e5937d2ad58e2fd03f3163b33ed2dd4b9
 	if(0 == *checkSlot) {
 		return false;
 	}

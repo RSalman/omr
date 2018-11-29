@@ -58,12 +58,7 @@ private:
 	MM_SublistPuddle *_next;
 	uintptr_t *_listBase;
 
-<<<<<<< HEAD
 	uintptr_t *_listTop;
-=======
-	
->>>>>>> 1d1e9a5e5937d2ad58e2fd03f3163b33ed2dd4b9
-
  
 protected:
 public:
@@ -76,11 +71,8 @@ private:
 
 protected:
 public:
-<<<<<<< HEAD
 	uintptr_t * volatile _listCurrent;
 	
-=======
->>>>>>> 1d1e9a5e5937d2ad58e2fd03f3163b33ed2dd4b9
 	uintptr_t _size;
 	static MM_SublistPuddle *newInstance(MM_EnvironmentBase *env, uintptr_t size, MM_SublistPool *parent, OMR::GC::AllocationCategory::Enum category);
 	static void kill(MM_EnvironmentBase *env, MM_SublistPuddle *puddle);
