@@ -29,8 +29,6 @@
 #define OMR_SCAVENGER_TRACK_COPY_DISTANCE
 #endif
 
-//#define ENABLE_RS_A SSE RT
-
 #include <math.h>
 
 #include "omrcfg.h"

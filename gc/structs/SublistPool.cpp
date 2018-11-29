@@ -214,7 +214,11 @@ MM_SublistPool::allocate(MM_EnvironmentBase *env, MM_SublistFragment *fragment)
 	omrthread_monitor_exit(_mutex);
 
 
+<<<<<<< HEAD
 	//allocated new puddle (print pointer _al locPuddle)
+=======
+	//allocated new puddle (print pointer _allocPuddle)
+>>>>>>> 1d1e9a5e5937d2ad58e2fd03f3163b33ed2dd4b9
 
 	return true;
 }
