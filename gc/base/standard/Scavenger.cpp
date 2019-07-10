@@ -1713,7 +1713,7 @@ MM_Scavenger::scavengeObjectSlots(MM_EnvironmentStandard *env, MM_CopyScanCacheS
 void
 MM_Scavenger::deepScanOutline(MM_EnvironmentStandard *env, omrobjectptr_t objectPtr, uintptr_t selfReferencingField1, uintptr_t selfReferencingField2)
 {
-	void *tempObj = objectPtr;
+	void *currentDeepObj = objectPtr;
 	uintptr_t priorityField = selfReferencingField1;
 	/* Throttle - Deep scan should be terminated when the free list is utilized more than 50% */
 	uintptr_t freeListUtilizationLimit = _scavengeCacheFreeList.getAllocatedCacheCount() / 2;
@@ -1723,30 +1723,28 @@ MM_Scavenger::deepScanOutline(MM_EnvironmentStandard *env, omrobjectptr_t object
 	env->_scavengerStats._totalDeepStructures += 1;
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
-	while (true) {
-		GC_SlotObject tempSlot(env->getOmrVM(), (fomrobject_t*)(((uintptr_t) tempObj) + priorityField));
-		if (NULL == tempSlot.readReferenceFromSlot()) {
+	do {
+		GC_SlotObject prioritySlot(env->getOmrVM(), (fomrobject_t*)(((uintptr_t) currentDeepObj) + priorityField));
+		copyAndForward(env, &prioritySlot);
+		/* Did we encounter an already visited object or hit throttling threshold? */
+		if (NULL == env->_effectiveCopyScanCache) {
+			/* Can't continue any further - attempt to deep scan with other self referencing field (e.g, prev field) */
 			if ((priorityField == selfReferencingField2) || (selfReferencingField2 == 0)) {
 				break;
 			}
 			priorityField = selfReferencingField2;
-		} else {
-			copyAndForward(env, &tempSlot);
-			/* Did we encounter an already visited object or hit throttling threshold? */
-			if (NULL == env->_effectiveCopyScanCache) {
-				break;
-			}
+			continue;
+		}
 
 #if defined(J9MODRON_TGC_PARALLEL_STATISTICS)
-			objDeepScanned += 1;
+		objDeepScanned += 1;
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
-			if(env->approxScanCacheCount > freeListUtilizationLimit){
-				break;
-			}
-			tempObj = tempSlot.readReferenceFromSlot();
+		if(env->approxScanCacheCount > freeListUtilizationLimit) {
+			break;
 		}
-	}
+		currentDeepObj = prioritySlot.readReferenceFromSlot();
+	} while (NULL != currentDeepObj);
 
 #if defined(J9MODRON_TGC_PARALLEL_STATISTICS)
 	env->_scavengerStats._totalObjsDeepScanned += objDeepScanned;
