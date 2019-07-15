@@ -296,7 +296,8 @@ public:
 	shouldStartDeepScan(MM_EnvironmentStandard *env, omrobjectptr_t objectPtr)
 	{
 		/* Check last few LSB of the object address for probability 1/16 */
-		return (0 == ((uintptr_t)objectPtr & 0x78)); 
+		//return (0 == ((uintptr_t)objectPtr & 0x78));
+		return true;  
 	}
 	
 	
