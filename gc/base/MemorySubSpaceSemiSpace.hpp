@@ -59,7 +59,7 @@ public:
 		restore_allocation_and_set_survivor,
 		backout,
 		restore_tilt_after_percolate
-	};	 
+	};		  
 private:
 	MM_MemorySubSpace *_memorySubSpaceAllocate;
 	MM_MemorySubSpace *_memorySubSpaceSurvivor;
@@ -72,9 +72,13 @@ private:
 
 	uintptr_t _previousBytesFlipped;
 	uintptr_t _tiltedAverageBytesFlipped;
-	uintptr_t _tiltedAverageBytesFlippedDelta;
+	uintptr_t _tiltedAverageBytesFlippedDelta; 
 
 	double _averageScavengeTimeRatio;
+	
+	double _flipRateAtExpansion;
+	double _flipRate;
+	
 	uint64_t _lastScavengeEndTime;
 
 	double _desiredSurvivorSpaceRatio;
@@ -187,6 +191,8 @@ public:
 		,_tiltedAverageBytesFlipped(0)
 		,_tiltedAverageBytesFlippedDelta(0)
 		,_averageScavengeTimeRatio(0.0)
+		,_flipRateAtExpansion(0.0)
+		,_flipRate(0.0)
 		,_lastScavengeEndTime(0)
 		,_desiredSurvivorSpaceRatio(0.0)
 #if defined(OMR_GC_CONCURRENT_SCAVENGER)		

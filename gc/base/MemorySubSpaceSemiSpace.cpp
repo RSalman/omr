@@ -832,13 +832,33 @@ MM_MemorySubSpaceSemiSpace::checkSubSpaceMemoryPostCollectTilt(MM_EnvironmentBas
 void
 MM_MemorySubSpaceSemiSpace::checkSubSpaceMemoryPostCollectResize(MM_EnvironmentBase *env)
 {
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary()) ;
+
+
 	MM_GCExtensionsBase *extensions = MM_GCExtensionsBase::getExtensions(env->getOmrVM());
 	uintptr_t regionSize = extensions->getHeap()->getHeapRegionManager()->getRegionSize();
+
+
+
+
+	omrtty_printf("\t FLIP BYTE RATE \n");
+
+	float flipBytesRate = (float) extensions->scavengerStats._flipBytes / (float) _memorySubSpaceSurvivor->getActiveMemorySize();
+	float prev = _flipRate;
+	_flipRate = MM_Math::weightedAverage(_flipRate, flipBytesRate, (float) 0.5);
+
+
+	omrtty_printf("\t\t -- Flip Rate: %.4f --> %.4f  -- (Current GC: %.4f - flipped %i)  \n", prev, _flipRate, flipBytesRate, extensions->scavengerStats._flipBytes);
+	omrtty_printf("\t\tRate at Last Expand: %.4f \n", _flipRateAtExpansion);
+	omrtty_printf("\tCurrentSize: %i mB (%zu)\n", (int) _memorySubSpaceSurvivor->getActiveMemorySize()/1000000, _memorySubSpaceSurvivor->getActiveMemorySize());
+
+	omrtty_printf("\n\t [GREP] CurrentSize: %zu \t _flipRate: %.4f \t CurrentflipRate: %.4f \t Rate at Last Expand: %.4f \n", _memorySubSpaceSurvivor->getActiveMemorySize(), _flipRate, flipBytesRate, _flipRateAtExpansion);
+
 
 	if(extensions->dynamicNewSpaceSizing) {
 		bool doDynamicNewSpaceSizing = true;
 		bool debug = extensions->debugDynamicNewSpaceSizing;
-		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+
 
 		if(debug) {
 			omrtty_printf("New space resize check:\n");
@@ -894,9 +914,9 @@ MM_MemorySubSpaceSemiSpace::checkSubSpaceMemoryPostCollectResize(MM_EnvironmentB
 			/* Find the ratio of time to scavenge versus the interval time since the last scavenge */
 			double timeRatio = (double)((int64_t)scavengeTime) / (double)((int64_t) intervalTime);
 			
-			if(debug) {
-				omrtty_printf("\tTime scav:%llu interval:%llu ratio:%lf\n", scavengeTime, intervalTime, timeRatio);
-			}
+
+				omrtty_printf("\t\t [GREP] Time scav:%llu interval:%llu ratio:%lf \t", scavengeTime, intervalTime, timeRatio);
+
 
 #if defined(OMR_GC_CONCURRENT_SCAVENGER)
 			if (_extensions->isConcurrentScavengerEnabled()) {
@@ -910,9 +930,9 @@ MM_MemorySubSpaceSemiSpace::checkSubSpaceMemoryPostCollectResize(MM_EnvironmentB
 			}
 #endif /* OMR_GC_CONCURRENT_SCAVENGER */
 
-			if(debug) {
-				omrtty_printf("\tAverage scavenge time ratio: %lf -> ", _averageScavengeTimeRatio);
-			}
+
+				omrtty_printf("Average scavenge time ratio: %lf -> ", _averageScavengeTimeRatio);
+
 
 			/* Based on the current time ratio versus the average time ratio, determine what weight to assign when
 			 * calculating the new average
@@ -935,9 +955,9 @@ MM_MemorySubSpaceSemiSpace::checkSubSpaceMemoryPostCollectResize(MM_EnvironmentB
 			/* Weight determined - calculate the new average */
 			_averageScavengeTimeRatio = (timeRatio * weight) + (_averageScavengeTimeRatio * (1.0 - weight));
 
-			if(debug) {
-				omrtty_printf("%lf (weight %lf)\n", _averageScavengeTimeRatio, weight);
-			}
+
+			omrtty_printf("%lf (weight %lf)\n\n", _averageScavengeTimeRatio, weight);
+
 
 			/* If the average scavenge to interval ratio is greater than the maximum, try to expand */
 			if((_averageScavengeTimeRatio > extensions->dnssExpectedTimeRatioMaximum)
@@ -967,6 +987,7 @@ MM_MemorySubSpaceSemiSpace::checkSubSpaceMemoryPostCollectResize(MM_EnvironmentB
 					omrtty_printf("\tExpand decision - new time ratio:%lf\n\n\n", _averageScavengeTimeRatio);
 				}
 
+				_flipRateAtExpansion = _flipRate;
 				extensions->heap->getResizeStats()->setLastExpandReason(SCAV_RATIO_TOO_HIGH);
 			}
 
