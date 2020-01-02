@@ -3257,6 +3257,7 @@ MM_ConcurrentGC::prepareHeapForWalk(MM_EnvironmentBase *envModron)
 bool
 MM_ConcurrentGC::heapAddRange(MM_EnvironmentBase *env, MM_MemorySubSpace *subspace, uintptr_t size, void *lowAddress, void *highAddress)
 {
+	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
 	Trc_MM_ConcurrentGC_heapAddRange_Entry(env->getLanguageVMThread(), subspace, size, lowAddress, highAddress);
 
 	_rebuildInitWorkForAdd = true;
@@ -3271,6 +3272,7 @@ MM_ConcurrentGC::heapAddRange(MM_EnvironmentBase *env, MM_MemorySubSpace *subspa
 		/* If we are within a concurrent cycle we need to initialize the mark bits
 		 * for new region of heap now
 		 */
+
 		if (CONCURRENT_OFF < _stats.getExecutionMode()) {
 			/* If subspace is concurrently collectible then clear bits otherwise
 			 * set the bits on to stop tracing INTO this area during concurrent
@@ -3281,6 +3283,9 @@ MM_ConcurrentGC::heapAddRange(MM_EnvironmentBase *env, MM_MemorySubSpace *subspa
 			} else {
 				_markingScheme->setMarkBitsInRange(env, lowAddress, highAddress, false);
 			}
+		} else {
+			Assert_MM_true(CONCURRENT_OFF == _stats.getExecutionMode());
+			omrtty_printf("\n [DEBUG] **** heapAddRange: CONCURRENT_OFF (Don't set any bits/clear)****\n");
 		}
 	}
 
@@ -3331,6 +3336,8 @@ MM_ConcurrentGC::heapRemoveRange(MM_EnvironmentBase *env, MM_MemorySubSpace *sub
 void
 MM_ConcurrentGC::heapReconfigured(MM_EnvironmentBase *env)
 {
+	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+
 	/* If called outside a global collection for a heap expand/contract..
 	 */
 	if (!_stwCollectionInProgress && (_rebuildInitWorkForAdd || _rebuildInitWorkForRemove)) {
@@ -3343,13 +3350,17 @@ MM_ConcurrentGC::heapReconfigured(MM_EnvironmentBase *env)
 		 *  when we resume the init work.
 		 */
 		if (_stats.getExecutionMode() < CONCURRENT_INIT_COMPLETE) {
+			omrtty_printf("\n [DEBUG] **** heapReconfigured: TUNE TO HEAP (rebuild)****\n");
 			tuneToHeap(env);
 		} else {
 			/* Heap expand/contract is during a concurrent cycle..we need to adjust the trace target so
 			 * that the trace rate is adjusted correctly on  subsequent allocates.
 			 */
 			adjustTraceTarget();
+			omrtty_printf("\n [DEBUG] **** heapReconfigured: CONCURRENT CYCLE (DON'T REBUILD)****\n");
 		}
+	} else {
+		omrtty_printf("\n [DEBUG] **** heapReconfigured: FAILED criteria either STW or rebuild flag not set (Don't rebuild)****\n");
 	}
 
 	/* Expand any superclass structures */
