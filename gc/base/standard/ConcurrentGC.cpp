@@ -3285,7 +3285,7 @@ MM_ConcurrentGC::heapAddRange(MM_EnvironmentBase *env, MM_MemorySubSpace *subspa
 			}
 		} else {
 			Assert_MM_true(CONCURRENT_OFF == _stats.getExecutionMode());
-			omrtty_printf("\n [DEBUG] **** heapAddRange: CONCURRENT_OFF (Don't set any bits/clear)****\n");
+			omrtty_printf("\n [DEBUG] **** [%p - %i] heapAddRange: CONCURRENT_OFF (Don't set any bits/clear) ****\n", env, env->expandID);
 		}
 	}
 
@@ -3350,17 +3350,17 @@ MM_ConcurrentGC::heapReconfigured(MM_EnvironmentBase *env)
 		 *  when we resume the init work.
 		 */
 		if (_stats.getExecutionMode() < CONCURRENT_INIT_COMPLETE) {
-			omrtty_printf("\n [DEBUG] **** heapReconfigured: TUNE TO HEAP (rebuild)****\n");
+			if(_rebuildInitWorkForAdd) omrtty_printf("\n [DEBUG]  [%p - %i]  **** heapReconfigured: TUNE TO HEAP (rebuild)****\n", env, env->expandID);
 			tuneToHeap(env);
 		} else {
 			/* Heap expand/contract is during a concurrent cycle..we need to adjust the trace target so
 			 * that the trace rate is adjusted correctly on  subsequent allocates.
 			 */
+			if(_rebuildInitWorkForAdd) omrtty_printf("\n [DEBUG]  [%p - %i]  **** heapReconfigured: CONCURRENT CYCLE (DON'T REBUILD)****\n", env, env->expandID);
 			adjustTraceTarget();
-			omrtty_printf("\n [DEBUG] **** heapReconfigured: CONCURRENT CYCLE (DON'T REBUILD)****\n");
 		}
-	} else {
-		omrtty_printf("\n [DEBUG] **** heapReconfigured: FAILED criteria either STW or rebuild flag not set (Don't rebuild)****\n");
+	} else if(_rebuildInitWorkForAdd) {
+		omrtty_printf("\n [DEBUG]  [%p - %i]  **** heapReconfigured: FAILED criteria either STW (Don't rebuild)****\n", env, env->expandID);
 	}
 
 	/* Expand any superclass structures */

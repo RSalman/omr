@@ -205,7 +205,7 @@ MM_PhysicalSubArenaVirtualMemoryFlat::expandNoCheck(MM_EnvironmentBase *env, uin
 		_highAddress = highExpandAddress;
 
 		MM_MemorySubSpace *genericSubSpace = ((MM_MemorySubSpaceFlat *)_subSpace)->getChildSubSpace();
-
+		env->expandID++;
 		bool result = genericSubSpace->heapAddRange(env, genericSubSpace , expandSize, lowExpandAddress, highExpandAddress);
 		omrthread_sleep(25);
 		getHeapRegionManager()->resizeAuxillaryRegion(env, _region, _lowAddress, _highAddress);
