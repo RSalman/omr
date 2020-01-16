@@ -194,16 +194,29 @@ MM_PhysicalSubArenaVirtualMemorySemiSpace::inflate(MM_EnvironmentBase *env)
 		/* Inform the semi spaces that they have been expanded */
 		bool resultExpandAllocate = subSpaceAllocate->expanded(env, this, _highSemiSpaceRegion->getSize(), lowAddress, highAddress, false);
 
+		if (env->getExtensions()->p5) {
+					omrthread_sleep(25); //FORCE RACE
+				}
+
 		if (resultExpandAllocate) {
 			subSpaceAllocate->heapReconfigured(env, HEAP_RECONFIG_EXPAND, subSpaceAllocate, lowAddress, highAddress);
 		} else {
 			subSpaceAllocate->heapReconfigured(env, HEAP_RECONFIG_EXPAND);
 		}
 
+		if (env->getExtensions()->p5) {
+			omrthread_sleep(10); //FORCE RACE
+		}
+
 		lowAddress = _lowSemiSpaceRegion->getLowAddress();
 		highAddress = _lowSemiSpaceRegion->getHighAddress();
 
 		bool resultExpandSurvivor = subSpaceSurvivor->expanded(env, this, _lowSemiSpaceRegion->getSize(), lowAddress, highAddress, false);
+
+		if (env->getExtensions()->p5) {
+				omrthread_sleep(10); //FORCE RACE
+			}
+
 
 		if(resultExpandSurvivor) {
 			subSpaceSurvivor->heapReconfigured(env, HEAP_RECONFIG_EXPAND, subSpaceSurvivor, lowAddress, highAddress);
@@ -1272,6 +1285,12 @@ MM_PhysicalSubArenaVirtualMemorySemiSpace::expandNoCheck(MM_EnvironmentBase *env
 		 * Must be done after segment information has been updated.
 		 */
 		bool expandResult = _subSpace->heapAddRange(env, _subSpace, splitExpandSize, newLowAddress, (void *) (((uintptr_t)newLowAddress) + splitExpandSize));
+
+		if (env->getExtensions()->p5) {
+				omrthread_sleep(20); //FORCE RACE
+			}
+
+
 		if (expandResult) {
 			_subSpace->heapReconfigured(env, HEAP_RECONFIG_EXPAND, _subSpace, newLowAddress, (void *) (((uintptr_t)newLowAddress) + splitExpandSize));
 		} else {
@@ -1338,6 +1357,12 @@ MM_PhysicalSubArenaVirtualMemorySemiSpace::expandNoCheck(MM_EnvironmentBase *env
 		 * Must be done after segment information has been updated.
 		 */
 		bool expandResult = _subSpace->heapAddRange(env, _subSpace, splitExpandSize, newLowAddress, (void *) (((uintptr_t)newLowAddress) + splitExpandSize));
+
+		if (env->getExtensions()->p5) {
+				omrthread_sleep(20); //FORCE RACE
+			}
+
+
 		if (expandResult) {
 			_subSpace->heapReconfigured(env, HEAP_RECONFIG_EXPAND, _subSpace, newLowAddress, (void *) (((uintptr_t)newLowAddress) + splitExpandSize));
 		} else {

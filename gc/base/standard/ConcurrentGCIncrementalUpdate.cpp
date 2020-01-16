@@ -125,6 +125,10 @@ MM_ConcurrentGCIncrementalUpdate::heapAddRange(MM_EnvironmentBase *env, MM_Memor
 	/* Expand any superclass structures including mark bits*/
 	bool result = MM_ConcurrentGC::heapAddRange(env, subspace, size, lowAddress, highAddress);
 
+	if (env->getExtensions()->p4) {
+		omrthread_sleep(20); //FORCE RACE
+	}
+
 	if (result) {
 		/* expand the card table */
 		result = ((MM_ConcurrentCardTable *)_cardTable)->heapAddRange(env, subspace, size, lowAddress, highAddress, clearCards);

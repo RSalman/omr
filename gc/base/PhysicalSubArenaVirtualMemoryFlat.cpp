@@ -216,11 +216,23 @@ MM_PhysicalSubArenaVirtualMemoryFlat::expandNoCheck(MM_EnvironmentBase *env, uin
 
 		bool result = genericSubSpace->heapAddRange(env, genericSubSpace , expandSize, lowExpandAddress, highExpandAddress);
 
+		if (env->getExtensions()->p1) {
+			omrthread_sleep(25); //FORCE RACE
+		}
+
 		getHeapRegionManager()->resizeAuxillaryRegion(env, _region, _lowAddress, _highAddress);
 		Assert_MM_true(NULL != _region);
 
+		if (env->getExtensions()->p2) {
+			omrthread_sleep(20); //FORCE RACE
+		}
+
+
 		if(result) {
 			genericSubSpace->addExistingMemory(env, this, expandSize, lowExpandAddress, highExpandAddress, true);
+			if (env->getExtensions()->p3) {
+				omrthread_sleep(20); //FORCE RACE
+			}
 			_subSpace->heapReconfigured(env, HEAP_RECONFIG_EXPAND, genericSubSpace, lowExpandAddress, highExpandAddress);
 		} else {
 			_subSpace->heapReconfigured(env, HEAP_RECONFIG_EXPAND);

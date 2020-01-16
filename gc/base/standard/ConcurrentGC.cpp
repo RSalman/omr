@@ -560,6 +560,31 @@ MM_ConcurrentGC::kill(MM_EnvironmentBase *env)
 bool
 MM_ConcurrentGC::initialize(MM_EnvironmentBase *env)
 {
+
+	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+
+	if(_extensions->p1) {
+		omrtty_printf("P1 set\n");
+	}
+
+	if(_extensions->p2) {
+		omrtty_printf("P2 set\n");
+	}
+
+	if(_extensions->p3) {
+		omrtty_printf("P3 set\n");
+	}
+
+	if(_extensions->p4) {
+		omrtty_printf("P4 set\n");
+	}
+
+
+	if(_extensions->p5) {
+		omrtty_printf("P5  set\n");
+	}
+
+
 	/* First call super class initialize */
 	if (!MM_ParallelGlobalGC::initialize(env)) {
 		goto error_no_memory;

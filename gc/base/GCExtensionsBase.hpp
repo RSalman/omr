@@ -253,8 +253,16 @@ public:
 	/* Temporary move from the leaf implementation */
 	bool concurrentSweep;
 #endif /* OMR_GC_CONCURRENT_SWEEP */
+	
 
 	bool largePageWarnOnError;
+	
+		bool p1;
+	bool p2;
+	bool p3;
+	bool p4;
+	bool p5;
+	
 	bool largePageFailOnError;
 	bool largePageFailedToSatisfy;
 #if defined(OMR_GC_DOUBLE_MAP_ARRAYLETS)
@@ -1355,6 +1363,9 @@ public:
 		, concurrentSweep(false)
 #endif /* OMR_GC_CONCURRENT_SWEEP */
 		, largePageWarnOnError(false)
+		, p1(false)
+		, p2(false)
+		, p3(false)
 		, largePageFailOnError(false)
 		, largePageFailedToSatisfy(false)
 #if defined(OMR_GC_DOUBLE_MAP_ARRAYLETS)
