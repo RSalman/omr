@@ -112,7 +112,7 @@ protected:
 
 	virtual void setThreadInitializationComplete(MM_EnvironmentBase *env);
 	
-	uintptr_t adjustThreadCount(uintptr_t maxThreadCount);
+	uintptr_t adjustThreadCount(uintptr_t maxThreadCount, MM_Task* task = NULL);
 	
 public:
 	virtual bool startUpThreads();
@@ -122,7 +122,6 @@ public:
 	MMINLINE virtual uintptr_t threadCountMaximum() { return _threadCountMaximum; }
 	MMINLINE omrthread_t* getThreadTable() { return _threadTable; }
 	MMINLINE virtual uintptr_t activeThreadCount() { return _activeThreadCount; }
-	virtual void setThreadCount(uintptr_t threadCount);
 
 	MMINLINE omrsig_handler_fn getSignalHandler() {return _handler;}
 	MMINLINE void * getSignalHandlerArg() {return _handler_arg;}

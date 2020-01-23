@@ -34,7 +34,7 @@ MM_ScavengerCopyScanRatio::reset(MM_EnvironmentBase* env, bool resetHistory)
 {
 	_accumulatingSamples = 0;
 	_accumulatedSamples = SCAVENGER_COUNTER_DEFAULT_ACCUMULATOR;
-	_threadCount = env->getExtensions()->dispatcher->threadCount();
+	_threadCount = env->getExtensions()->dispatcher->activeThreadCount();
 	if (resetHistory) {
 		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 		_resetTimestamp = omrtime_hires_clock();
@@ -84,7 +84,7 @@ MM_ScavengerCopyScanRatio::record(MM_EnvironmentBase* env, uintptr_t nonEmptySca
 	}
 
 	/* update record at current table index from fields in current acculumator */
-	uintptr_t threadCount = env->getExtensions()->dispatcher->threadCount();
+	uintptr_t threadCount = env->getExtensions()->dispatcher->activeThreadCount();
 	UpdateHistory *historyRecord = &(_historyTable[_historyTableIndex]);
 	uint64_t accumulatedSamples = _accumulatedSamples;
 	historyRecord->waits += waits(accumulatedSamples);
@@ -101,7 +101,8 @@ MM_ScavengerCopyScanRatio::record(MM_EnvironmentBase* env, uintptr_t nonEmptySca
 	historyRecord->readObjectBarrierCopy = ext->scavengerStats._readObjectBarrierCopy;
 #endif /* OMR_GC_CONCURRENT_SCAVENGER */
 	historyRecord->time = omrtime_hires_clock();
-
+	omrtty_printf("waits %zu\tcopied %zu\tscanned %zu\tupdates %zu\tthreads %zu\tlists %zu\tcaches %zu\n",
+	historyRecord->waits,historyRecord->copied,historyRecord->scanned,historyRecord->updates,historyRecord->threads,historyRecord->lists,historyRecord->caches);
 	/* advance table index if current record is maxed out */
 	if (historyRecord->updates >= (_historyFoldingFactor * SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE)) {
 		_historyTableIndex += 1;

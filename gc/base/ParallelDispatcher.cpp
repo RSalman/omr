@@ -391,19 +391,6 @@ MM_ParallelDispatcher::wakeUpThreads(uintptr_t count)
 }
 
 /**
- * Let tasks run with reduced thread count.
- * After the task is complete the thread count should be restored.
- * Dispatcher may additionally adjust (reduce) the count.
- */
-void
-MM_ParallelDispatcher::setThreadCount(uintptr_t threadCount)
-{
-	Assert_MM_true(threadCount <= _threadCountMaximum);
-	Assert_MM_true(0 < threadCount);
- 	_threadCount = threadCount;
-}
-
-/**
  * Decide how many threads should be active for a given task.
  */
 uintptr_t
@@ -419,7 +406,7 @@ MM_ParallelDispatcher::recomputeActiveThreadCountForTask(MM_EnvironmentBase *env
 		 *  3) 1 if we have not yet started the GC helpers or are in process of  shutting down
 		 *     the GC helper threads.
 		 */
-		_activeThreadCount = adjustThreadCount(_threadCount);
+		_activeThreadCount = adjustThreadCount(_threadCount, task);
 	}
 
 
@@ -433,7 +420,7 @@ MM_ParallelDispatcher::recomputeActiveThreadCountForTask(MM_EnvironmentBase *env
 }
 
 uintptr_t 
-MM_ParallelDispatcher::adjustThreadCount(uintptr_t maxThreadCount)
+MM_ParallelDispatcher::adjustThreadCount(uintptr_t maxThreadCount, MM_Task* task)
 {
 	uintptr_t toReturn = maxThreadCount;
 	
@@ -451,6 +438,13 @@ MM_ParallelDispatcher::adjustThreadCount(uintptr_t maxThreadCount)
 			toReturn = maximumThreadsForHeapSize;
 		}
 
+		if (NULL != task) {
+			uintptr_t workingThreads = task->getRecommendedWorkingThreads();
+			if (workingThreads < toReturn) {
+				toReturn = workingThreads;
+			}
+		}
+		
 		OMRPORT_ACCESS_FROM_OMRVM(_extensions->getOmrVM());
 		/* No, use the current active CPU count (unless it would overflow our threadtables) */
 		uintptr_t activeCPUs = omrsysinfo_get_number_CPUs_by_type(OMRPORT_CPU_TARGET);

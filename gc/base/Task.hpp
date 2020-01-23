@@ -34,6 +34,7 @@
 
 #include "AtomicOperations.hpp"
 #include "BaseVirtual.hpp"
+#include "Collector.hpp"
 #include "Debug.hpp"
 
 /* Macro to create an unique literal string identifier */ 
@@ -59,6 +60,8 @@ public:
 	virtual void run(MM_EnvironmentBase *env) = 0;
 	virtual void cleanup(MM_EnvironmentBase *env);
 
+	virtual uintptr_t getRecommendedWorkingThreads() { return UDATA_MAX; }
+	
 	/**
 	 * Single call setup routine for tasks invoked by the master thread before the task is dispatched.
 	 */

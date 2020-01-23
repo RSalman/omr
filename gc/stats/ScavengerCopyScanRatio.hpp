@@ -168,7 +168,10 @@ public:
 		/* Assert: 0 == historyRecord->updates % SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE */
 		uint64_t majorUpdates = historyRecord->updates / SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE;
 		/* Raise thread count to ceiling to get maximal lower bound for scaling factor estimate */
-		uint64_t threads = (historyRecord->threads + majorUpdates - 1) / majorUpdates;
+		uint64_t threads = historyRecord->threads;
+		if (0 < majorUpdates) {
+			threads = (historyRecord->threads + majorUpdates - 1) / majorUpdates;
+		}
 		/* Assert: threads <= max(<gc-thread-count>) recorded in historyRecord */
 		return getScalingFactor(env, threads, historyRecord->waits, historyRecord->copied, historyRecord->scanned, historyRecord->updates);
 	}
@@ -186,9 +189,9 @@ public:
 	 * @return if non zero, it's time for major update. the returned value is to be passed to majorUpdate
 	 */
 	MMINLINE uint64_t
-	update(MM_EnvironmentBase* env, uint64_t *slotsScanned, uint64_t *slotsCopied, uint64_t waitingCount)
+	update(MM_EnvironmentBase* env, uint64_t *slotsScanned, uint64_t *slotsCopied, uint64_t waitingCount, bool forceUpdate)
 	{
-		if (SCAVENGER_SLOTS_SCANNED_PER_THREAD_UPDATE <= *slotsScanned) {
+		if (SCAVENGER_SLOTS_SCANNED_PER_THREAD_UPDATE <= *slotsScanned || forceUpdate) {
 			uint64_t scannedCount =  *slotsScanned;
 			uint64_t copiedCount =  *slotsCopied;
 			*slotsScanned = *slotsCopied = 0;
@@ -206,7 +209,7 @@ public:
 			uint64_t updateCount = updates(updateResult);
 
 			/* this next section includes a critical region for the thread that increments the update counter to threshold */
-			if (SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE == updateCount) {
+			if (SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE == updateCount || forceUpdate) {
 				/* make sure that every other thread knows that a specific thread is performing the major update. if
 				 * this thread gets timesliced in the section below while other free-running threads work up another major
 				 * update, that update will be discarded */

@@ -101,6 +101,7 @@
 
 #define INITIAL_FREE_HISTORY_WEIGHT ((float)0.8)
 #define TENURE_BYTES_HISTORY_WEIGHT ((float)0.9)
+// #define WORKING_THREADS_HISTORY_WEIGHT ((float)0.5)
 
 #define FLIP_TENURE_LARGE_SCAN 4
 #define FLIP_TENURE_LARGE_SCAN_DEFERRED 5
@@ -279,6 +280,11 @@ MM_Scavenger::initialize(MM_EnvironmentBase *env)
 	}
 
 	_cacheLineAlignment = CACHE_LINE_SIZE;
+
+	_historicAverageWorkingThreads = _dispatcher->threadCountMaximum() / (_extensions->scavengerDynamicThreadsHeuristicBooster / 100.0f + 1.0f);
+	if (0 == _historicAverageWorkingThreads) {
+		_historicAverageWorkingThreads = 1;
+	}
 
 #if defined(OMR_GC_CONCURRENT_SCAVENGER)
 	if (_extensions->concurrentScavenger) {
@@ -467,6 +473,45 @@ MM_Scavenger::workerSetupForGC(MM_EnvironmentStandard *env)
 	Assert_MM_false(env->_loaAllocation);
 	Assert_MM_true(NULL == env->_survivorTLHRemainderBase);
 	Assert_MM_true(NULL == env->_survivorTLHRemainderTop);
+}
+uintptr_t
+MM_Scavenger::getRecommendedWorkingThreads()
+{
+	uintptr_t returnWorkingThreads = (uintptr_t)(_historicAverageWorkingThreads * (_extensions->scavengerDynamicThreadsHeuristicBooster / 100.0f + 1.0f)) + 2;
+	return returnWorkingThreads;
+}
+
+void
+MM_Scavenger::calculateHistoricAverageWorkingThreads(MM_EnvironmentStandard *env, uintptr_t threadCount)
+{
+	uintptr_t recordCount = 0;
+	MM_ScavengerCopyScanRatio::UpdateHistory *historyRecord = _extensions->copyScanRatio.getHistory(&recordCount);
+	MM_ScavengerCopyScanRatio::UpdateHistory *endRecord = historyRecord + recordCount;
+	double totalWaits = 0;
+
+	uintptr_t totalTime = 0;
+
+	while (historyRecord < endRecord) {
+		double waitingThreads = (double)historyRecord->waits / (double)historyRecord->updates;
+		totalWaits += waitingThreads;
+		totalTime += _extensions->copyScanRatio.getSpannedMicros(env, historyRecord);
+		historyRecord += 1;
+	}
+
+	uintptr_t gcCount = _extensions->scavengerStats._gcCount;
+	double normalWait = (double)historyRecord->waits;
+	if (0 < recordCount) {
+		normalWait = totalWaits / (double)recordCount;
+	}
+
+	float currThreads = (float)threadCount - (float)normalWait;
+	_historicWorkingThreadsTimeWeight += totalTime;
+	float timeRatio = (float)totalTime;
+	if (0 < _historicWorkingThreadsTimeWeight) {
+		timeRatio /= _historicWorkingThreadsTimeWeight;
+	}
+	_historicAverageWorkingThreads = MM_Math::weightedAverage(_historicAverageWorkingThreads, currThreads, 1 - timeRatio);
+	Trc_MM_Scavenger_workingThreadsHistory(env->getLanguageVMThread(), threadCount, _historicAverageWorkingThreads, gcCount, normalWait, totalTime);
 }
 
 /**
@@ -1637,11 +1682,11 @@ MM_Scavenger::splitIndexableObjectScanner(MM_EnvironmentStandard *env, GC_Object
  * @param[in] slotsCopied number of slots copied on thread from MM_CopyScanCache since last call to this method
  */
 MMINLINE void
-MM_Scavenger::updateCopyScanCounts(MM_EnvironmentBase* env, uint64_t slotsScanned, uint64_t slotsCopied)
+MM_Scavenger::updateCopyScanCounts(MM_EnvironmentBase* env, uint64_t slotsScanned, uint64_t slotsCopied, bool forceUpdate)
 {
 	env->_scavengerStats._slotsScanned += slotsScanned;
 	env->_scavengerStats._slotsCopied += slotsCopied;
-	uint64_t updateResult = _extensions->copyScanRatio.update(env, &(env->_scavengerStats._slotsScanned), &(env->_scavengerStats._slotsCopied), _waitingCount);
+	uint64_t updateResult = _extensions->copyScanRatio.update(env, &(env->_scavengerStats._slotsScanned), &(env->_scavengerStats._slotsCopied), _waitingCount, forceUpdate);
 	if (0 != updateResult) {
 		_extensions->copyScanRatio.majorUpdate(env, updateResult, _cachedEntryCount, _scavengeCacheScanList.getApproximateEntryCount());
 	}
@@ -2213,6 +2258,8 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 	addCopyCachesToFreeList(env);
 	abandonSurvivorTLHRemainder(env);
 	abandonTenureTLHRemainder(env, true);
+
+	// updateCopyScanCounts(env, 0, 0, true);
 
 	/* If -Xgc:fvtest=forceScavengerBackout has been specified, set backout flag every 3rd scavenge */
 	if(_extensions->fvtest_forceScavengerBackout) {
@@ -3875,6 +3922,8 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 
 			/* Build free list in evacuate profile. Perform resize. */
 			_activeSubSpace->masterTeardownForSuccessfulGC(env);
+
+			calculateHistoricAverageWorkingThreads(env, _dispatcher->activeThreadCount());
 
 			/* Defer to collector language interface */
 			_delegate.masterThreadGarbageCollect_scavengeSuccess(env);

@@ -69,6 +69,7 @@ class MM_Scavenger : public MM_Collector
 	 * Data members
 	 */
 private:
+	float _historicWorkingThreadsTimeWeight;
 	MM_ScavengerDelegate _delegate;
 
 	const uintptr_t _objectAlignmentInBytes;	/**< Run-time objects alignment in bytes */
@@ -110,6 +111,7 @@ private:
 	omrthread_monitor_t _freeCacheMonitor; /**< monitor to synchronize threads on free list */
 	uintptr_t _waitingCountAliasThreshold; /**< Only alias a copy cache IF the number of threads waiting hasn't reached the threshold*/
 	volatile uintptr_t _waitingCount; /**< count of threads waiting  on scan cache queues (blocked via _scanCacheMonitor); threads never wait on _freeCacheMonitor */
+	float _historicAverageWorkingThreads;
 	uintptr_t _cacheLineAlignment; /**< The number of bytes per cache line which is used to determine which boundaries in memory represent the beginning of a cache line */
 	volatile bool _rescanThreadsForRememberedObjects; /**< Indicates that thread-referenced objects were tenured and threads must be rescanned */
 
@@ -147,6 +149,8 @@ public:
 	 * Function members
 	 */
 private:
+	void calculateHistoricAverageWorkingThreads(MM_EnvironmentStandard *env, uintptr_t threadCount);
+
 	/**
 	 * Flush the threads reference and remembered set caches before waiting in getNextScanCache.
 	 * This removes the requirement of a synchronization point after calls to completeScan when
@@ -201,6 +205,8 @@ private:
 	}
 
 public:
+	virtual uintptr_t getRecommendedWorkingThreads();
+
 	/**
 	 * Hook callback. Called when a global collect has started
 	 */
@@ -251,7 +257,7 @@ public:
 
 	MMINLINE omrobjectptr_t copy(MM_EnvironmentStandard *env, MM_ForwardedHeader* forwardedHeader);
 
-	MMINLINE void updateCopyScanCounts(MM_EnvironmentBase* env, uint64_t slotsScanned, uint64_t slotsCopied);
+	MMINLINE void updateCopyScanCounts(MM_EnvironmentBase* env, uint64_t slotsScanned, uint64_t slotsCopied, bool forceMajorUpdate = false);
 	bool splitIndexableObjectScanner(MM_EnvironmentStandard *env, GC_ObjectScanner *objectScanner, uintptr_t startIndex, omrobjectptr_t *rememberedSetSlot);
 
 	/**
@@ -817,6 +823,7 @@ public:
 
 	MM_Scavenger(MM_EnvironmentBase *env, MM_HeapRegionManager *regionManager) :
 		MM_Collector()
+		, _historicWorkingThreadsTimeWeight(0)
 		, _delegate(env)
 		, _objectAlignmentInBytes(env->getObjectAlignmentInBytes())
 		, _isRememberedSetInOverflowAtTheBeginning(false)
@@ -846,6 +853,7 @@ public:
 		, _freeCacheMonitor(NULL)
 		, _waitingCountAliasThreshold(0)
 		, _waitingCount(0)
+		, _historicAverageWorkingThreads(1)
 		, _cacheLineAlignment(0)
 #if !defined(OMR_GC_CONCURRENT_SCAVENGER)
 		, _rescanThreadsForRememberedObjects(false)

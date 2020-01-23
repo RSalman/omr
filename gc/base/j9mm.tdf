@@ -918,3 +918,4 @@ TraceEvent=Trc_MM_Scavenger_percolate_tenureMaxFree Overhead=1 Level=1 Group=per
 TraceAssert=Assert_MM_double_map_unreachable noEnv Overhead=1 Level=1 Assert="(false)"
 
 TraceEvent=Trc_ParallelGlobalGC_shouldCompactThisCycle Overhead=1 Level=1 Group=compact Template="Current page granularity fragmented ratio: %f  Threshold: %f"
+TraceEvent=Trc_MM_Scavenger_workingThreadsHistory Overhead=1 Level=1 Group=scavenger Template="threadCount: %zu _historicAverageWorkingThreads: %.2f gcCount %zu normalWait %.2f totalTime: %zu"

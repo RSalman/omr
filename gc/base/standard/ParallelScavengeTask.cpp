@@ -66,6 +66,12 @@ MM_ParallelScavengeTask::cleanup(MM_EnvironmentBase *env)
 	}
 }
 
+uintptr_t
+MM_ParallelScavengeTask::getRecommendedWorkingThreads()
+{
+	return _collector->getRecommendedWorkingThreads();
+}
+
 #if defined(J9MODRON_TGC_PARALLEL_STATISTICS)
 void
 MM_ParallelScavengeTask::synchronizeGCThreads(MM_EnvironmentBase *envBase, const char *id)

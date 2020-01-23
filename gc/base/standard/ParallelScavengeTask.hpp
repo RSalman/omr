@@ -58,6 +58,7 @@ public:
 	virtual void setup(MM_EnvironmentBase *env);
 	virtual void cleanup(MM_EnvironmentBase *env);
 	virtual void masterSetup(MM_EnvironmentBase *env);
+	virtual uintptr_t getRecommendedWorkingThreads();
 
 #if defined(J9MODRON_TGC_PARALLEL_STATISTICS)
 	/**
