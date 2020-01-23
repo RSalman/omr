@@ -374,6 +374,7 @@ MM_Scavenger::masterSetupForGC(MM_EnvironmentStandard *env)
 	/* Reinitialize the copy scan caches */
 	Assert_MM_true(_scavengeCacheFreeList.areAllCachesReturned());
 	Assert_MM_true(0 == _cachedEntryCount);
+	Assert_MM_true(_extensions->copyScanRatio.isEmpty());
 	_extensions->copyScanRatio.reset(env, true);
 
 	/* Cache heap ranges for fast "valid object" checks (this can change in an expanding heap situation, so we refetch every cycle) */
@@ -688,6 +689,7 @@ MM_Scavenger::mergeGCStatsBase(MM_EnvironmentBase *env, MM_ScavengerStats *final
 	finalGCStats->_totalDeepStructures += scavStats->_totalDeepStructures;
 	finalGCStats->_totalObjsDeepScanned += scavStats->_totalObjsDeepScanned;
 	finalGCStats->_depthDeepestStructure = scavStats->_depthDeepestStructure;
+	finalGCStats->_copyScanUpdates += scavStats->_copyScanUpdates;
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
 	finalGCStats->_flipDiscardBytes += scavStats->_flipDiscardBytes;
@@ -1641,8 +1643,24 @@ MM_Scavenger::updateCopyScanCounts(MM_EnvironmentBase* env, uint64_t slotsScanne
 {
 	env->_scavengerStats._slotsScanned += slotsScanned;
 	env->_scavengerStats._slotsCopied += slotsCopied;
-	uint64_t updateResult = _extensions->copyScanRatio.update(env, &(env->_scavengerStats._slotsScanned), &(env->_scavengerStats._slotsCopied), _waitingCount);
+	uint64_t updateResult = _extensions->copyScanRatio.update(env, &(env->_scavengerStats._slotsScanned), &(env->_scavengerStats._slotsCopied), _waitingCount, _cachedEntryCount, _scavengeCacheScanList.getApproximateEntryCount(), &(env->_scavengerStats._copyScanUpdates));
 	if (0 != updateResult) {
+		_extensions->copyScanRatio.majorUpdate(env, updateResult, _cachedEntryCount, _scavengeCacheScanList.getApproximateEntryCount());
+	}
+}
+
+MMINLINE void
+MM_Scavenger::flushCopyScanCounts(MM_EnvironmentBase* env, bool majorFlush)
+{
+	uint64_t updateResult = 0;
+
+	if(env->_scavengerStats._slotsScanned != 0) {
+		updateResult = _extensions->copyScanRatio.update(env, &(env->_scavengerStats._slotsScanned), &(env->_scavengerStats._slotsCopied), _waitingCount, 0, 0, &(env->_scavengerStats._copyScanUpdates), true);
+	}
+
+	if(majorFlush) {
+		_extensions->copyScanRatio.flush(env);
+	} else if (0 != updateResult) {
 		_extensions->copyScanRatio.majorUpdate(env, updateResult, _cachedEntryCount, _scavengeCacheScanList.getApproximateEntryCount());
 	}
 }
@@ -1880,10 +1898,11 @@ MM_Scavenger::incrementalScavengeObjectSlots(MM_EnvironmentStandard *env, omrobj
  */
 
 MMINLINE void
-MM_Scavenger::flushBuffersForGetNextScanCache(MM_EnvironmentStandard *env)
+MM_Scavenger::flushBuffersForGetNextScanCache(MM_EnvironmentStandard *env, bool finalFlush)
 {
 	_delegate.flushReferenceObjects(env);
 	flushRememberedSet(env);
+	flushCopyScanCounts(env, finalFlush);
 }
 
 MM_CopyScanCacheStandard *
@@ -1971,8 +1990,8 @@ MM_Scavenger::getNextScanCache(MM_EnvironmentStandard *env)
 			if((env->_currentTask->getThreadCount() == _waitingCount) && (0 == _cachedEntryCount)) {
 				_waitingCount = 0;
 				_doneIndex += 1;
-				flushBuffersForGetNextScanCache(env);
-				_extensions->copyScanRatio.reset(env, false);
+				flushBuffersForGetNextScanCache(env, true);
+				Assert_MM_true(_extensions->copyScanRatio.isEmpty());
 				omrthread_monitor_notify_all(_scanCacheMonitor);
 			} else {
 				while((0 == _cachedEntryCount) && (doneIndex == _doneIndex) && !shouldAbortScanLoop(env)) {
@@ -2145,7 +2164,7 @@ MM_Scavenger::completeScan(MM_EnvironmentStandard *env)
 		}
 	}
 
-	env->_scavengerStats.resetCopyScanCounts();
+	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
 
 	MM_CopyScanCacheStandard *scanCache = NULL;
 	while(NULL != (scanCache = getNextScanCache(env))) {
@@ -2166,7 +2185,7 @@ MM_Scavenger::completeScan(MM_EnvironmentStandard *env)
 		}
 	}
 
-	env->_scavengerStats.resetCopyScanCounts();
+	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
 
 	/* A slow  thread can see backOutFlag raised by a fast thread aborting in the next scan cycle.
 	 * By checking that thread local doneIndex of the current scan cycle matches the doneIndex from scan cycle that raised the flag,
@@ -2187,6 +2206,7 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 
 	/* GC init (set up per-invocation values) */
 	workerSetupForGC(env);
+	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
 
 	/*
 	 * There is a hidden assumption that RS Overflow flag would not be changed between beginning of scavenge and this point,
@@ -2199,6 +2219,8 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 
 	rootScanner.scavengeRememberedSet(env);
 
+	flushCopyScanCounts(env);
+
 	rootScanner.scanRoots(env);
 
 	if(completeScan(env)) {
@@ -2209,6 +2231,7 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 		rootScanner.scanClearable(env);
 	}
 	rootScanner.flush(env);
+	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
 
 	addCopyCachesToFreeList(env);
 	abandonSurvivorTLHRemainder(env);
@@ -2238,6 +2261,7 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 		/* pruning */
 		rootScanner.pruneRememberedSet(env);
 	}
+	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
 
 	/* No matter what happens, always sum up the gc stats */
 	mergeThreadGCStats(env);
@@ -3678,7 +3702,7 @@ MM_Scavenger::completeBackOut(MM_EnvironmentStandard *env)
 #endif /* OMR_SCAVENGER_TRACE_BACKOUT */
 
 	/* Ensure we've pushed all references from buffers out to the lists and flushed RS fragments*/
-	flushBuffersForGetNextScanCache(env);
+	flushBuffersForGetNextScanCache(env, true);
 
 	/* Must synchronize to be sure all private caches have been flushed */
 	if (env->_currentTask->synchronizeGCThreadsAndReleaseMaster(env, UNIQUE_ID)) {
@@ -3838,7 +3862,9 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 	} else
 #endif /* OMR_GC_CONCURRENT_SCAVENGER */
 	{
+		Assert_MM_true(_extensions->copyScanRatio.isEmpty());
 		scavenge(env);
+		Assert_MM_true(_extensions->copyScanRatio.isEmpty());
 	}
 
 #if defined(OMR_GC_CONCURRENT_SCAVENGER)
