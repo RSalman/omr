@@ -38,6 +38,7 @@ MM_ScavengerCopyScanRatio::reset(MM_EnvironmentBase* env, bool resetHistory)
 	if (resetHistory) {
 		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 		_resetTimestamp = omrtime_hires_clock();
+		_majorUpdateThreadEnv = 0;
 		_scalingUpdateCount = 0;
 		_overflowCount = 0;
 		_historyFoldingFactor = 1;

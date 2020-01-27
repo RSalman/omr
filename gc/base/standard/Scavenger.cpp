@@ -368,6 +368,8 @@ MM_Scavenger::setupForGC(MM_EnvironmentBase *env)
 void
 MM_Scavenger::masterSetupForGC(MM_EnvironmentStandard *env)
 {
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+	omrtty_printf("{SCAV: ****************************}\n");
 	/* Make sure the backout state is cleared */
 	setBackOutFlag(env, backOutFlagCleared);
 
@@ -2016,12 +2018,14 @@ MM_Scavenger::getNextScanCache(MM_EnvironmentStandard *env)
 			if((env->_currentTask->getThreadCount() == _waitingCount) && (0 == _cachedEntryCount)) {
 				_waitingCount = 0;
 				_doneIndex += 1;
+				updateCopyScanCounts(env, 0, 0, true);
 				flushBuffersForGetNextScanCache(env);
-				_extensions->copyScanRatio.reset(env, false);
+				//_extensions->copyScanRatio.reset(env, false);
 				omrthread_monitor_notify_all(_scanCacheMonitor);
 			} else {
 				while((0 == _cachedEntryCount) && (doneIndex == _doneIndex) && !shouldAbortScanLoop(env)) {
 					flushBuffersForGetNextScanCache(env);
+					updateCopyScanCounts(env, 0, 0, true);
 #if defined(J9MODRON_TGC_PARALLEL_STATISTICS)
 					uint64_t waitEndTime, waitStartTime;
 					waitStartTime = omrtime_hires_clock();
