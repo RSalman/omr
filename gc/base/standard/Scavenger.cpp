@@ -29,6 +29,8 @@
 #define OMR_SCAVENGER_TRACK_COPY_DISTANCE
 #endif
 
+#define DEBUG_HIS 0
+
 #include <math.h>
 
 #include "omrcfg.h"
@@ -101,7 +103,6 @@
 
 #define INITIAL_FREE_HISTORY_WEIGHT ((float)0.8)
 #define TENURE_BYTES_HISTORY_WEIGHT ((float)0.9)
-// #define WORKING_THREADS_HISTORY_WEIGHT ((float)0.5)
 
 #define FLIP_TENURE_LARGE_SCAN 4
 #define FLIP_TENURE_LARGE_SCAN_DEFERRED 5
@@ -281,11 +282,6 @@ MM_Scavenger::initialize(MM_EnvironmentBase *env)
 
 	_cacheLineAlignment = CACHE_LINE_SIZE;
 
-	_historicAverageWorkingThreads = _dispatcher->threadCountMaximum() / (_extensions->scavengerDynamicThreadsHeuristicBooster / 100.0f + 1.0f);
-	if (0 == _historicAverageWorkingThreads) {
-		_historicAverageWorkingThreads = 1;
-	}
-
 #if defined(OMR_GC_CONCURRENT_SCAVENGER)
 	if (_extensions->concurrentScavenger) {
 		if (!_masterGCThread.initialize(this, true, true, true)) {
@@ -368,8 +364,6 @@ MM_Scavenger::setupForGC(MM_EnvironmentBase *env)
 void
 MM_Scavenger::masterSetupForGC(MM_EnvironmentStandard *env)
 {
-	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
-	omrtty_printf("{SCAV: ****************************}\n");
 	/* Make sure the backout state is cleared */
 	setBackOutFlag(env, backOutFlagCleared);
 
@@ -475,45 +469,6 @@ MM_Scavenger::workerSetupForGC(MM_EnvironmentStandard *env)
 	Assert_MM_false(env->_loaAllocation);
 	Assert_MM_true(NULL == env->_survivorTLHRemainderBase);
 	Assert_MM_true(NULL == env->_survivorTLHRemainderTop);
-}
-uintptr_t
-MM_Scavenger::getRecommendedWorkingThreads()
-{
-	uintptr_t returnWorkingThreads = (uintptr_t)(_historicAverageWorkingThreads * (_extensions->scavengerDynamicThreadsHeuristicBooster / 100.0f + 1.0f)) + 2;
-	return returnWorkingThreads;
-}
-
-void
-MM_Scavenger::calculateHistoricAverageWorkingThreads(MM_EnvironmentStandard *env, uintptr_t threadCount)
-{
-	uintptr_t recordCount = 0;
-	MM_ScavengerCopyScanRatio::UpdateHistory *historyRecord = _extensions->copyScanRatio.getHistory(&recordCount);
-	MM_ScavengerCopyScanRatio::UpdateHistory *endRecord = historyRecord + recordCount;
-	double totalWaits = 0;
-
-	uintptr_t totalTime = 0;
-
-	while (historyRecord < endRecord) {
-		double waitingThreads = (double)historyRecord->waits / (double)historyRecord->updates;
-		totalWaits += waitingThreads;
-		totalTime += _extensions->copyScanRatio.getSpannedMicros(env, historyRecord);
-		historyRecord += 1;
-	}
-
-	uintptr_t gcCount = _extensions->scavengerStats._gcCount;
-	double normalWait = (double)historyRecord->waits;
-	if (0 < recordCount) {
-		normalWait = totalWaits / (double)recordCount;
-	}
-
-	float currThreads = (float)threadCount - (float)normalWait;
-	_historicWorkingThreadsTimeWeight += totalTime;
-	float timeRatio = (float)totalTime;
-	if (0 < _historicWorkingThreadsTimeWeight) {
-		timeRatio /= _historicWorkingThreadsTimeWeight;
-	}
-	_historicAverageWorkingThreads = MM_Math::weightedAverage(_historicAverageWorkingThreads, currThreads, 1 - timeRatio);
-	Trc_MM_Scavenger_workingThreadsHistory(env->getLanguageVMThread(), threadCount, _historicAverageWorkingThreads, gcCount, normalWait, totalTime);
 }
 
 /**
@@ -1684,11 +1639,11 @@ MM_Scavenger::splitIndexableObjectScanner(MM_EnvironmentStandard *env, GC_Object
  * @param[in] slotsCopied number of slots copied on thread from MM_CopyScanCache since last call to this method
  */
 MMINLINE void
-MM_Scavenger::updateCopyScanCounts(MM_EnvironmentBase* env, uint64_t slotsScanned, uint64_t slotsCopied, bool forceUpdate)
+MM_Scavenger::updateCopyScanCounts(MM_EnvironmentBase* env, uint64_t slotsScanned, uint64_t slotsCopied)
 {
 	env->_scavengerStats._slotsScanned += slotsScanned;
 	env->_scavengerStats._slotsCopied += slotsCopied;
-	uint64_t updateResult = _extensions->copyScanRatio.update(env, &(env->_scavengerStats._slotsScanned), &(env->_scavengerStats._slotsCopied), _waitingCount, forceUpdate);
+	uint64_t updateResult = _extensions->copyScanRatio.update(env, &(env->_scavengerStats._slotsScanned), &(env->_scavengerStats._slotsCopied), _waitingCount, _cachedEntryCount, _scavengeCacheScanList.getApproximateEntryCount());
 	if (0 != updateResult) {
 		_extensions->copyScanRatio.majorUpdate(env, updateResult, _cachedEntryCount, _scavengeCacheScanList.getApproximateEntryCount());
 	}
@@ -2018,14 +1973,16 @@ MM_Scavenger::getNextScanCache(MM_EnvironmentStandard *env)
 			if((env->_currentTask->getThreadCount() == _waitingCount) && (0 == _cachedEntryCount)) {
 				_waitingCount = 0;
 				_doneIndex += 1;
-				updateCopyScanCounts(env, 0, 0, true);
+				//updateCopyScanCounts(env, 0, 0, true);
+				flushRemainingSlotStats(env);
 				flushBuffersForGetNextScanCache(env);
 				//_extensions->copyScanRatio.reset(env, false);
 				omrthread_monitor_notify_all(_scanCacheMonitor);
 			} else {
 				while((0 == _cachedEntryCount) && (doneIndex == _doneIndex) && !shouldAbortScanLoop(env)) {
 					flushBuffersForGetNextScanCache(env);
-					updateCopyScanCounts(env, 0, 0, true);
+					//updateCopyScanCounts(env, 0, 0, true);
+					flushRemainingSlotStats(env);
 #if defined(J9MODRON_TGC_PARALLEL_STATISTICS)
 					uint64_t waitEndTime, waitStartTime;
 					waitStartTime = omrtime_hires_clock();
@@ -2062,6 +2019,7 @@ MM_Scavenger::getNextScanCache(MM_EnvironmentStandard *env)
 void
 MM_Scavenger::completeScanCache(MM_EnvironmentStandard *env, MM_CopyScanCacheStandard* scanCache)
 {
+	Assert_MM_unreachable();
 	omrobjectptr_t objectPtr = NULL;
 
 	/* mark that cache is in use as a scan cache */
@@ -2177,24 +2135,13 @@ nextCache:
 bool
 MM_Scavenger::completeScan(MM_EnvironmentStandard *env)
 {
-	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+//	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 
 	/* take a snapshot of ID of this scan cycle (which will change in getNextScanCache() once all threads agree to leave the scan loop) */
 	uintptr_t doneIndex = _doneIndex;
 
-	if (_extensions->_forceRandomBackoutsAfterScan) {
-		if (0 == (rand() % _extensions->_forceRandomBackoutsAfterScanPeriod)) {
-			omrtty_printf("Forcing backout at workUnitIndex: %zu lastSyncPointReached: %s\n", env->getWorkUnitIndex(), env->_lastSyncPointReached);
-			setBackOutFlag(env, backOutFlagRaised);
-			omrthread_monitor_enter(_scanCacheMonitor);
-			if (0 != _waitingCount) {
-				omrthread_monitor_notify_all(_scanCacheMonitor);
-			}
-			omrthread_monitor_exit(_scanCacheMonitor);
-		}
-	}
-
-	env->_scavengerStats.resetCopyScanCounts();
+	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
+	//env->_scavengerStats.resetCopyScanCounts();
 
 	MM_CopyScanCacheStandard *scanCache = NULL;
 	while(NULL != (scanCache = getNextScanCache(env))) {
@@ -2215,7 +2162,28 @@ MM_Scavenger::completeScan(MM_EnvironmentStandard *env)
 		}
 	}
 
-	env->_scavengerStats.resetCopyScanCounts();
+
+
+	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
+
+//	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+
+//	omrtty_printf("[%i] _remainingUnflushedThreads: %u\n", env->getSlaveID(), _remainingUnflushedThreads);
+
+
+	if (0 == MM_AtomicOperations::subtract(&_remainingUnflushedThreads, 1)) {
+		_remainingUnflushedThreads = _dispatcher->activeThreadCount();
+		flushRemainingAccumulatedSamples(env);
+	}
+
+
+	/*if (env->_currentTask->synchronizeGCThreadsAndReleaseSingleThread(env, UNIQUE_ID)) {
+		 //omrtty_printf("[%i] Post CompleteScan: Major Flush\n", env->getSlaveID());
+		flushRemainingAccumulatedSamples(env);
+		env->_currentTask->releaseSynchronizedGCThreads(env);
+	}*/
+	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
+	//env->_scavengerStats.resetCopyScanCounts();
 
 	/* A slow  thread can see backOutFlag raised by a fast thread aborting in the next scan cycle.
 	 * By checking that thread local doneIndex of the current scan cycle matches the doneIndex from scan cycle that raised the flag,
@@ -2229,13 +2197,41 @@ MM_Scavenger::completeScan(MM_EnvironmentStandard *env)
 	return !backOutRaisedThisScanCycle;
 }
 
+MMINLINE void
+MM_Scavenger::flushRemainingAccumulatedSamples(MM_EnvironmentBase* env)
+{
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+	if(DEBUG_HIS)omrtty_printf("\t [%i] Attempt to do Major Flush\n", env->getSlaveID());
+	_extensions->copyScanRatio.flush(env);
+}
+
+MMINLINE void
+MM_Scavenger::flushRemainingSlotStats(MM_EnvironmentBase* env)
+{
+	if(env->_scavengerStats._slotsScanned != 0) {
+		//OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+		//omrtty_printf("\tMissed update for %zu slots\n", env->_scavengerStats._slotsScanned);
+		//We have an update which didn't make it because of < 512 slots scanned, we should go ahead
+		// and update with the cachedWaitCount which would of been the wait count at the update
+		// One thread will eventually do a major update for all the flushed minor updates
+		uint64_t updateResult = _extensions->copyScanRatio.update(env, &(env->_scavengerStats._slotsScanned), &(env->_scavengerStats._slotsCopied), env->cachedWaitCount, 0, 0, true);
+		//omrtty_printf("\t flushRemainingSlotStats \n");
+		if (0 != updateResult) {
+			//omrtty_printf("\t FLUSHING resulted in major update\n");
+			_extensions->copyScanRatio.majorUpdate(env, updateResult, 0, 0, true);
+		}
+	}
+}
+
 void
 MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 {
 	Assert_MM_false(IS_CONCURRENT_ENABLED);
+	//OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 
 	/* GC init (set up per-invocation values) */
 	workerSetupForGC(env);
+	env->_totalUpdates = 0;
 
 	/*
 	 * There is a hidden assumption that RS Overflow flag would not be changed between beginning of scavenge and this point,
@@ -2248,6 +2244,8 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 
 	rootScanner.scavengeRememberedSet(env);
 
+	flushRemainingSlotStats(env);
+
 	rootScanner.scanRoots(env);
 
 	if(completeScan(env)) {
@@ -2257,13 +2255,14 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 		}
 		rootScanner.scanClearable(env);
 	}
+
+	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
+
 	rootScanner.flush(env);
 
 	addCopyCachesToFreeList(env);
 	abandonSurvivorTLHRemainder(env);
 	abandonTenureTLHRemainder(env, true);
-
-	// updateCopyScanCounts(env, 0, 0, true);
 
 	/* If -Xgc:fvtest=forceScavengerBackout has been specified, set backout flag every 3rd scavenge */
 	if(_extensions->fvtest_forceScavengerBackout) {
@@ -2290,6 +2289,7 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 		rootScanner.pruneRememberedSet(env);
 	}
 
+	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
 	/* No matter what happens, always sum up the gc stats */
 	mergeThreadGCStats(env);
 }
@@ -3890,6 +3890,7 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 #endif /* OMR_GC_CONCURRENT_SCAVENGER */
 	{
 		scavenge(env);
+		Assert_MM_true(_extensions->copyScanRatio.isEmpty());
 	}
 
 #if defined(OMR_GC_CONCURRENT_SCAVENGER)
@@ -3898,6 +3899,7 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 	bool lastIncrement = true;
 #endif
 
+	Assert_MM_true(_extensions->copyScanRatio.isEmpty());
 	_extensions->incrementScavengerStats._endTime = omrtime_hires_clock();
 
 	/* merge stats from this increment/phase to aggregate cycle stats */
@@ -3926,8 +3928,6 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 
 			/* Build free list in evacuate profile. Perform resize. */
 			_activeSubSpace->masterTeardownForSuccessfulGC(env);
-
-			calculateHistoricAverageWorkingThreads(env, _dispatcher->activeThreadCount());
 
 			/* Defer to collector language interface */
 			_delegate.masterThreadGarbageCollect_scavengeSuccess(env);

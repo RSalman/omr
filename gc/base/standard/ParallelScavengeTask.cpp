@@ -43,6 +43,7 @@ MM_ParallelScavengeTask::masterSetup(MM_EnvironmentBase *env)
 {
 	uintptr_t calculatedAliasThreshold = (uintptr_t)(getThreadCount() * env->getExtensions()->aliasInhibitingThresholdPercentage);
 	_collector->setAliasThreshold(calculatedAliasThreshold);
+	_collector->_remainingUnflushedThreads = getThreadCount();
 }
 
 void
@@ -64,12 +65,6 @@ MM_ParallelScavengeTask::cleanup(MM_EnvironmentBase *env)
 	} else {
 		env->_cycleState = NULL;
 	}
-}
-
-uintptr_t
-MM_ParallelScavengeTask::getRecommendedWorkingThreads()
-{
-	return _collector->getRecommendedWorkingThreads();
 }
 
 #if defined(J9MODRON_TGC_PARALLEL_STATISTICS)
