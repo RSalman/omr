@@ -91,8 +91,6 @@ public:
 	 */
 	bool gcCompleted() { return _gcCompleted; }
 
-	virtual uintptr_t getRecommendedWorkingThreads() { return UDATA_MAX; }
-
 private:
 	void setThreadFailAllocFlag(MM_EnvironmentBase *env, bool flag);
 	bool checkForExcessiveGC(MM_EnvironmentBase* env, MM_Collector *collector);

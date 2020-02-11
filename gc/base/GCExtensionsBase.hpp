@@ -106,8 +106,6 @@ class HeapRegionStateTable;
 #define DEFAULT_SCAN_CACHE_MAXIMUM_SIZE (128 * 1024)
 #define DEFAULT_SCAN_CACHE_MINIMUM_SIZE (8 * 1024)
 
-#define DEFAULT_DYNAMIC_THREADS_HEURISTIC_BOOSTER 20
-
 #define NO_ESTIMATE_FRAGMENTATION 			0x0
 #define LOCALGC_ESTIMATE_FRAGMENTATION 		0x1
 #define GLOBALGC_ESTIMATE_FRAGMENTATION 	0x2
@@ -474,7 +472,6 @@ public:
 	uintptr_t scvArraySplitMinimumAmount; /**< minimum number of elements to split array scanning work in the scavenger */
 	uintptr_t scavengerScanCacheMaximumSize; /**< maximum size of scan and copy caches before rounding, zero (default) means calculate them */
 	uintptr_t scavengerScanCacheMinimumSize; /**< minimum size of scan and copy caches before rounding, zero (default) means calculate them */
-	uintptr_t scavengerDynamicThreadsHeuristicBooster;
 	bool tiltedScavenge;
 	bool debugTiltedScavenge;
 	double survivorSpaceMinimumSizeRatio;
@@ -1531,7 +1528,6 @@ public:
 		, scvArraySplitMinimumAmount(DEFAULT_ARRAY_SPLIT_MINIMUM_SIZE)
 		, scavengerScanCacheMaximumSize(DEFAULT_SCAN_CACHE_MAXIMUM_SIZE)
 		, scavengerScanCacheMinimumSize(DEFAULT_SCAN_CACHE_MINIMUM_SIZE)
-		, scavengerDynamicThreadsHeuristicBooster(DEFAULT_DYNAMIC_THREADS_HEURISTIC_BOOSTER)
 		, tiltedScavenge(true)
 		, debugTiltedScavenge(false)
 		, survivorSpaceMinimumSizeRatio(0.10)
