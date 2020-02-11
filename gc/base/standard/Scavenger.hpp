@@ -142,7 +142,6 @@ protected:
 
 public:
 	OMR_VM *_omrVM;
-	volatile uintptr_t _remainingUnflushedThreads;
 	
 	/*
 	 * Function members
@@ -866,7 +865,6 @@ public:
 #endif /* #if defined(OMR_GC_CONCURRENT_SCAVENGER) */
 
 		, _omrVM(env->getOmrVM())
-		, _remainingUnflushedThreads(0)
 	{
 		_typeId = __FUNCTION__;
 		_cycleType = OMR_GC_CYCLE_TYPE_SCAVENGE;

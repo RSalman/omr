@@ -130,8 +130,6 @@ public:
 
 	MM_ObjectAllocationInterface *_objectAllocationInterface; /**< Per-thread interface that guides object allocation decisions */
 	
-	uintptr_t cachedWaitCount;
-	
 	MM_WorkStack _workStack;
 
 	ThreadType  _threadType;
@@ -640,8 +638,7 @@ public:
 		,_regionLocalFree(NULL)
 		,_regionLocalFull(NULL)
 #endif /* OMR_GC_SEGREGATED_HEAP */
-		,_objectAllocationInterface(NULL)
-		,cachedWaitCount(0)
+		,_objectAllocationInterface(NULL)	
 		,_workStack()
 		,_threadType(MUTATOR_THREAD)
 		,_cycleState(NULL)
@@ -695,7 +692,6 @@ public:
 		,_regionLocalFull(NULL)
 #endif /* OMR_GC_SEGREGATED_HEAP */
 		,_objectAllocationInterface(NULL)
-		,cachedWaitCount(0)
 		,_workStack()
 		,_threadType(MUTATOR_THREAD)
 		,_cycleState(NULL)

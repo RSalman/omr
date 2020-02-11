@@ -43,7 +43,6 @@ MM_ParallelScavengeTask::masterSetup(MM_EnvironmentBase *env)
 {
 	uintptr_t calculatedAliasThreshold = (uintptr_t)(getThreadCount() * env->getExtensions()->aliasInhibitingThresholdPercentage);
 	_collector->setAliasThreshold(calculatedAliasThreshold);
-	_collector->_remainingUnflushedThreads = getThreadCount();
 }
 
 void
