@@ -2187,7 +2187,7 @@ MM_Scavenger::flushRemainingAccumulatedSamples(MM_EnvironmentBase* env)
 {
 	//OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 	//omrtty_printf("\t [%i] Attempt to do MAJOR Flush\n", env->getSlaveID());
-	_extensions->copyScanRatio.flush();
+	_extensions->copyScanRatio.flush(env);
 }
 
 MMINLINE void

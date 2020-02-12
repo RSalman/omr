@@ -52,6 +52,8 @@ MM_ScavengerCopyScanRatio::reset(MM_EnvironmentBase* env, bool resetHistory)
 uintptr_t
 MM_ScavengerCopyScanRatio::record(MM_EnvironmentBase* env, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued)
 {
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+
 	if (SCAVENGER_UPDATE_HISTORY_SIZE <= _historyTableIndex) {
 		Assert_MM_true(SCAVENGER_UPDATE_HISTORY_SIZE == _historyTableIndex);
 		/* table full -- sum adjacent pairs of records and shift results to top half of table */

@@ -220,9 +220,9 @@ public:
 
 			/* add this thread's samples to the accumulating register */
 			uint64_t updateSample = sample(scannedCount, copiedCount, waitingCount);
-			uint64_t updateResult = atomicAddThreadUpdate(updateSample, flush);
+			uint64_t updateResult = atomicAddThreadUpdate(updateSample);
 			uint64_t updateCount = updates(updateResult);
-			env->_totalUpdates++;
+			//env->_totalUpdates++;
 			/* this next section includes a critical region for the thread that increments the update counter to threshold */
 			if (SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE == updateCount) {
 				/* make sure that every other thread knows that a specific thread is performing the major update. if
@@ -244,7 +244,7 @@ public:
 	 * @param cachesQueued total number of items in scan queue lists
 	 */
 	MMINLINE void
-	majorUpdate(MM_EnvironmentBase* env, uint64_t updateResult, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush) 
+	majorUpdate(MM_EnvironmentBase* env, uint64_t updateResult, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush = false) 
 	{
 		if (0 == (SCAVENGER_COUNTER_OVERFLOW & updateResult)) {
 			/* no overflow so latch updateResult into _accumulatedSamples and record the update */
@@ -260,7 +260,7 @@ public:
 	}
 	
 	MMINLINE void
-	flush() 
+	flush(MM_EnvironmentBase* env) 
 	{
 		uint64_t updateResult = 0;
 		if (_accumulatingSamples != 0) {
@@ -391,7 +391,7 @@ private:
 	 * @return The value at _accumulatingSamples
 	 */
 	MMINLINE uint64_t
-	atomicAddThreadUpdate(uint64_t threadUpdate, bool flush)
+	atomicAddThreadUpdate(uint64_t threadUpdate)
 	{
 		uint64_t newValue = 0;
 		/* Stop compiler optimizing away load of oldValue */
