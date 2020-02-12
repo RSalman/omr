@@ -129,7 +129,7 @@ public:
 	} AttachVMThreadReason;
 
 	MM_ObjectAllocationInterface *_objectAllocationInterface; /**< Per-thread interface that guides object allocation decisions */
-	
+
 	MM_WorkStack _workStack;
 
 	ThreadType  _threadType;
@@ -143,7 +143,6 @@ public:
 	MM_WorkPacketStats _workPacketStatsRSScan;   /**< work packet Stats specifically for RS Scan Phase of Concurrent STW GC */
 
 	uint64_t _slaveThreadCpuTimeNanos;	/**< Total CPU time used by this slave thread (or 0 for non-slaves) */
-	
 	uint64_t _totalUpdates;
 
 	MM_FreeEntrySizeClassStats _freeEntrySizeClassStats;  /**< GC thread local statistics structure for heap free entry size (sizeClass) distribution */
@@ -638,7 +637,7 @@ public:
 		,_regionLocalFree(NULL)
 		,_regionLocalFull(NULL)
 #endif /* OMR_GC_SEGREGATED_HEAP */
-		,_objectAllocationInterface(NULL)	
+		,_objectAllocationInterface(NULL)
 		,_workStack()
 		,_threadType(MUTATOR_THREAD)
 		,_cycleState(NULL)

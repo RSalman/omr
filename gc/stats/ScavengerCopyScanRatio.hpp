@@ -162,14 +162,10 @@ public:
 		return getScalingFactor(env, _threadCount, waits(accumulatedSamples), copied(accumulatedSamples), scanned(accumulatedSamples), updates(accumulatedSamples));
 	}
 
-
 	MMINLINE bool
 	isEmpty()
-	{
-		return updates(_accumulatingSamples) == 0;
-	}
+	{ return updates(_accumulatingSamples) == 0; }
 	
-
 	/**
 	 * Estimate and return maximal lower bound for cache size scaling factor from accumulated wait/copy/scan
 	 * updates, or 0 if none received yet. Use this form for estimating scaling factor from history records.
@@ -210,19 +206,18 @@ public:
 			uint64_t scannedCount =  *slotsScanned;
 			uint64_t copiedCount =  *slotsCopied;
 			*slotsScanned = *slotsCopied = 0;
-	
+
 			/* this thread may have scanned a long array segment resulting in scanned/copied slot counts that must be scaled down to avoid overflow in the accumulator */
 			while ((SCAVENGER_SLOTS_SCANNED_PER_THREAD_UPDATE << 1) < scannedCount) {
 				/* scale scanned and copied counts identically */
 				scannedCount >>= 1;
 				copiedCount >>= 1;
 			}
-	
+
 			/* add this thread's samples to the accumulating register */
 			uint64_t updateSample = sample(scannedCount, copiedCount, waitingCount);
 			uint64_t updateResult = atomicAddThreadUpdate(env, updateSample, nonEmptyScanLists, cachesQueued, flush);
 			uint64_t updateCount = updates(updateResult);
-	
 			env->_totalUpdates++;
 	
 			/* this next section includes a critical region for the thread that increments the update counter to threshold */
@@ -230,17 +225,16 @@ public:
 				/* make sure that every other thread knows that a specific thread is performing the major update. if
 				 * this thread gets timesliced in the section below while other free-running threads work up another major
 				 * update, that update will be discarded */
-	
+
 				if  (0 == MM_AtomicOperations::lockCompareExchange(&_majorUpdateThreadEnv, 0, (uintptr_t)env)) {
 					return updateResult;
 				}
 			}
 		}
-	
+
 		return 0;
 	}
-	
-	
+
 	/**
 	 * Major update of progress stats: a snapshot returned by minor update is stored into _accumulatedSamples.
 	 * This is the value used for subsequent calculations of copy/scan ratios and average wait counts, up until 
@@ -249,7 +243,7 @@ public:
 	 * @param nonEmptyScanLists number of non-empty scan queue lists
 	 * @param cachesQueued total number of items in scan queue lists
 	 */
-	MMINLINE	 void 
+	MMINLINE void
 	majorUpdate(MM_EnvironmentBase* env, uint64_t updateResult, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush) 
 	{
 		if (0 == (SCAVENGER_COUNTER_OVERFLOW & updateResult)) {
@@ -265,7 +259,7 @@ public:
 		MM_AtomicOperations::storeSync();
 	}
 	
-	MMINLINE	 void
+	MMINLINE void
 	flush() 
 	{
 		uint64_t updateResult = 0;
@@ -310,7 +304,7 @@ public:
 	 * @return the number of times overflow was detected during a major update since start of current gc cycle
 	 */
 	MMINLINE uintptr_t getOverflowCount() { return _overflowCount; }
-		
+
 	/**
 	 * Access the update history. This is not thread safe and should be called only after GC completes.
 	 *
@@ -396,13 +390,13 @@ private:
 	 *
 	 * @return The value at _accumulatingSamples
 	 */
-	uint64_t atomicAddThreadUpdate(uint64_t threadUpdate, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush)
+	MMINLINE uint64_t
+	atomicAddThreadUpdate(uint64_t threadUpdate, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush)
 	{
 		uint64_t newValue = 0;
 		/* Stop compiler optimizing away load of oldValue */
 		volatile uint64_t *localAddr = &_accumulatingSamples;
 		uint64_t oldValue = *localAddr;
-	
 		if (oldValue == MM_AtomicOperations::lockCompareExchangeU64(localAddr, oldValue, oldValue + threadUpdate)) {
 			if(!flush) {
 				nonEmptyScanListsFlushCache = nonEmptyScanLists;
@@ -410,14 +404,13 @@ private:
 			}
 			newValue = oldValue + threadUpdate;
 			uint64_t updateCount = updates(newValue);
-			if (SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE <= updateCount) {	
+			if (SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE <= updateCount) {
 				MM_AtomicOperations::setU64(&_accumulatingSamples, 0);
 				if (SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE < updateCount) {
 					newValue = 0;
 				}
 			}
 		}
-	
 		return newValue;
 	}
 

@@ -41,7 +41,6 @@ MM_ScavengerCopyScanRatio::reset(MM_EnvironmentBase* env, bool resetHistory)
 		_majorUpdateThreadEnv = 0;
 		_scalingUpdateCount = 0;
 		_overflowCount = 0;
-		_localFlushes = 0;
 		_historyFoldingFactor = 1;
 		_historyTableIndex = 0;
 		memset(_historyTable, 0, SCAVENGER_UPDATE_HISTORY_SIZE * sizeof(UpdateHistory));
