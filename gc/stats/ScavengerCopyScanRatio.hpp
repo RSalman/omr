@@ -201,6 +201,11 @@ public:
 	MMINLINE uint64_t 
 	update(MM_EnvironmentBase* env, uint64_t *slotsScanned, uint64_t *slotsCopied, uint64_t waitingCount, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush = false)
 	{
+		if(!flush) {
+			nonEmptyScanListsFlushCache = nonEmptyScanLists;
+			cachesQueuedFlushCache = cachesQueued;
+		}
+		
 		if (SCAVENGER_SLOTS_SCANNED_PER_THREAD_UPDATE <= *slotsScanned || flush) {
 			uint64_t scannedCount =  *slotsScanned;
 			uint64_t copiedCount =  *slotsCopied;
@@ -215,7 +220,7 @@ public:
 
 			/* add this thread's samples to the accumulating register */
 			uint64_t updateSample = sample(scannedCount, copiedCount, waitingCount);
-			uint64_t updateResult = atomicAddThreadUpdate(env, updateSample, nonEmptyScanLists, cachesQueued, flush);
+			uint64_t updateResult = atomicAddThreadUpdate(updateSample, flush);
 			uint64_t updateCount = updates(updateResult);
 			env->_totalUpdates++;
 			/* this next section includes a critical region for the thread that increments the update counter to threshold */
@@ -245,7 +250,7 @@ public:
 			/* no overflow so latch updateResult into _accumulatedSamples and record the update */
 			MM_AtomicOperations::setU64(&_accumulatedSamples, updateResult);
 			_scalingUpdateCount += 1;
-			_threadCount = record(env, flush ? nonEmptyScanLists :nonEmptyScanListsFlushCache , flush ? cachesQueuedFlushCache : cachesQueued);
+			_threadCount = record(env, flush ? nonEmptyScanLists : nonEmptyScanListsFlushCache , flush ? cachesQueuedFlushCache : cachesQueued);
 		} else {
 			/* one or more counters overflowed so discard this update */
 			_overflowCount += 1;
@@ -386,17 +391,13 @@ private:
 	 * @return The value at _accumulatingSamples
 	 */
 	MMINLINE uint64_t
-	atomicAddThreadUpdate(uint64_t threadUpdate, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush)
+	atomicAddThreadUpdate(uint64_t threadUpdate, bool flush)
 	{
 		uint64_t newValue = 0;
 		/* Stop compiler optimizing away load of oldValue */
 		volatile uint64_t *localAddr = &_accumulatingSamples;
 		uint64_t oldValue = *localAddr;
 		if (oldValue == MM_AtomicOperations::lockCompareExchangeU64(localAddr, oldValue, oldValue + threadUpdate)) {
-			if(!flush) {
-				nonEmptyScanListsFlushCache = nonEmptyScanLists;
-				cachesQueuedFlushCache = cachesQueued;
-			}
 			newValue = oldValue + threadUpdate;
 			uint64_t updateCount = updates(newValue);
 			if (SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE <= updateCount) {
