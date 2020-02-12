@@ -2187,7 +2187,7 @@ MM_Scavenger::flushRemainingAccumulatedSamples(MM_EnvironmentBase* env)
 {
 	//OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 	//omrtty_printf("\t [%i] Attempt to do MAJOR Flush\n", env->getSlaveID());
-	_extensions->copyScanRatio.flush(env);
+	_extensions->copyScanRatio.flush();
 }
 
 MMINLINE void
@@ -2195,7 +2195,7 @@ MM_Scavenger::flushRemainingSlotStats(MM_EnvironmentBase* env)
 {
 //	omrtty_printf("\t [%i] Attempt to do MINOR Flush\n", env->getSlaveID());
 	if(env->_scavengerStats._slotsScanned != 0) {
-		uint64_t updateResult = _extensions->copyScanRatio.update(env, &(env->_scavengerStats._slotsScanned), &(env->_scavengerStats._slotsCopied), env->cachedWaitCount, 0, 0, true);
+		uint64_t updateResult = _extensions->copyScanRatio.update(env, &(env->_scavengerStats._slotsScanned), &(env->_scavengerStats._slotsCopied), _waitingCount, 0, 0, true);
 		if (0 != updateResult) {
 			_extensions->copyScanRatio.majorUpdate(env, updateResult, 0, 0, true);
 		}

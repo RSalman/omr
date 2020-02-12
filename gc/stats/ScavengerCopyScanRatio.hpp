@@ -198,7 +198,6 @@ public:
 	 * @param waitingCount number of waiting threads at current instant
 	 * @return if non zero, it's time for major update. the returned value is to be passed to majorUpdate
 	 */
-
 	MMINLINE uint64_t 
 	update(MM_EnvironmentBase* env, uint64_t *slotsScanned, uint64_t *slotsCopied, uint64_t waitingCount, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush = false)
 	{
@@ -219,22 +218,18 @@ public:
 			uint64_t updateResult = atomicAddThreadUpdate(env, updateSample, nonEmptyScanLists, cachesQueued, flush);
 			uint64_t updateCount = updates(updateResult);
 			env->_totalUpdates++;
-	
 			/* this next section includes a critical region for the thread that increments the update counter to threshold */
 			if (SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE == updateCount) {
 				/* make sure that every other thread knows that a specific thread is performing the major update. if
 				 * this thread gets timesliced in the section below while other free-running threads work up another major
 				 * update, that update will be discarded */
-
 				if  (0 == MM_AtomicOperations::lockCompareExchange(&_majorUpdateThreadEnv, 0, (uintptr_t)env)) {
 					return updateResult;
 				}
 			}
 		}
-
 		return 0;
 	}
-
 	/**
 	 * Major update of progress stats: a snapshot returned by minor update is stored into _accumulatedSamples.
 	 * This is the value used for subsequent calculations of copy/scan ratios and average wait counts, up until 
