@@ -2130,6 +2130,8 @@ nextCache:
 bool
 MM_Scavenger::completeScan(MM_EnvironmentStandard *env)
 {
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+
 	/* take a snapshot of ID of this scan cycle (which will change in getNextScanCache() once all threads agree to leave the scan loop) */
 	uintptr_t doneIndex = _doneIndex;
 
@@ -2183,14 +2185,15 @@ MM_Scavenger::completeScan(MM_EnvironmentStandard *env)
 MMINLINE void
 MM_Scavenger::flushRemainingAccumulatedSamples(MM_EnvironmentBase* env)
 {
-	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
-	if(DEBUG_HIS)omrtty_printf("\t [%i] Attempt to do Major Flush\n", env->getSlaveID());
+	//OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+	//omrtty_printf("\t [%i] Attempt to do MAJOR Flush\n", env->getSlaveID());
 	_extensions->copyScanRatio.flush(env);
 }
 
 MMINLINE void
 MM_Scavenger::flushRemainingSlotStats(MM_EnvironmentBase* env)
 {
+//	omrtty_printf("\t [%i] Attempt to do MINOR Flush\n", env->getSlaveID());
 	if(env->_scavengerStats._slotsScanned != 0) {
 		uint64_t updateResult = _extensions->copyScanRatio.update(env, &(env->_scavengerStats._slotsScanned), &(env->_scavengerStats._slotsCopied), env->cachedWaitCount, 0, 0, true);
 		if (0 != updateResult) {

@@ -84,7 +84,6 @@ class MM_EnvironmentBase;
 #define SCAVENGER_SLOTS_COPIED_OVERFLOW ((uint64_t)1 << (SCAVENGER_SLOTS_COPIED_SHIFT + SCAVENGER_SAMPLE_SLOTS_BITS - 1))
 #define SCAVENGER_THREAD_WAITS_OVERFLOW ((uint64_t)1 << (SCAVENGER_THREAD_WAITS_SHIFT + SCAVENGER_SAMPLE_WAITS_BITS - 1))
 
-//#define SCAVENGER_COUNTER_OVERFLOW (SCAVENGER_THREAD_WAITS_OVERFLOW | SCAVENGER_SLOTS_COPIED_OVERFLOW | SCAVENGER_SLOTS_SCANNED_OVERFLOW | SCAVENGER_SAMPLE_SLOTS_BITS)
 #define SCAVENGER_COUNTER_OVERFLOW (SCAVENGER_THREAD_WAITS_OVERFLOW | SCAVENGER_SLOTS_COPIED_OVERFLOW | SCAVENGER_SLOTS_SCANNED_OVERFLOW )
 
 #define SCAVENGER_COUNTER_DEFAULT_ACCUMULATOR 0
@@ -120,9 +119,6 @@ private:
 	volatile uintptr_t _majorUpdateThreadEnv;	/**< a token for the thread that has claimed a major update and owns the critical region wherein the update is effected */
 	uintptr_t _scalingUpdateCount;				/**< the number of times _accumulatingSamples was latched into _accumulatedSamples */
 	uintptr_t _overflowCount;					/**< the number of times _accumulatingSamples overflowed one or more counters */
-	uintptr_t _flushCount;					/**< the number of times _accumulatingSamples overflowed one or more counters */
-	uintptr_t _missed;
-	uintptr_t _missed_extra;
 	uint64_t _resetTimestamp;					/**< timestamp at reset() */
 	uintptr_t _threadCount;						/**< number of gc threads participating in current gc cycle */
 	uintptr_t _historyFoldingFactor;			/** number of major updates per history record */
@@ -131,11 +127,7 @@ private:
 	
 	uint64_t nonEmptyScanListsFlushCache;
 	uint64_t cachesQueuedFlushCache;
-	uint64_t _concurrentUpdaters;
 	
-	uint64_t _localFlushes;
-
-
 	/* Function members */
 public:
 	/**
@@ -148,17 +140,12 @@ public:
 		,_majorUpdateThreadEnv(0)
 		,_scalingUpdateCount(0)
 		,_overflowCount(0)
-		,_flushCount(0)
-		,_missed(0)
-		,_missed_extra(0)
 		,_resetTimestamp(0)
 		,_threadCount(0)
 		,_historyFoldingFactor(1)
 		,_historyTableIndex(0)
 		,nonEmptyScanListsFlushCache(0)
 		,cachesQueuedFlushCache(0)
-		,_concurrentUpdaters(0)
-		,_localFlushes(0)
 	{
 		memset(_historyTable, 0, SCAVENGER_UPDATE_HISTORY_SIZE * sizeof(UpdateHistory));
 	}
@@ -216,10 +203,43 @@ public:
 	 * @return if non zero, it's time for major update. the returned value is to be passed to majorUpdate
 	 */
 
-	uintptr_t update(MM_EnvironmentBase* env, uint64_t *slotsScanned, uint64_t *slotsCopied, uint64_t waitingCount, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush = false);
+	MMINLINE uint64_t 
+	update(MM_EnvironmentBase* env, uint64_t *slotsScanned, uint64_t *slotsCopied, uint64_t waitingCount, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush = false)
+	{
+		if (SCAVENGER_SLOTS_SCANNED_PER_THREAD_UPDATE <= *slotsScanned || flush) {
+			uint64_t scannedCount =  *slotsScanned;
+			uint64_t copiedCount =  *slotsCopied;
+			*slotsScanned = *slotsCopied = 0;
 	
-		 void 
-	majorUpdate(MM_EnvironmentBase* env, uint64_t updateResult, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush = false);
+			/* this thread may have scanned a long array segment resulting in scanned/copied slot counts that must be scaled down to avoid overflow in the accumulator */
+			while ((SCAVENGER_SLOTS_SCANNED_PER_THREAD_UPDATE << 1) < scannedCount) {
+				/* scale scanned and copied counts identically */
+				scannedCount >>= 1;
+				copiedCount >>= 1;
+			}
+	
+			/* add this thread's samples to the accumulating register */
+			uint64_t updateSample = sample(scannedCount, copiedCount, waitingCount);
+			uint64_t updateResult = atomicAddThreadUpdate(env, updateSample, nonEmptyScanLists, cachesQueued, flush);
+			uint64_t updateCount = updates(updateResult);
+	
+			env->_totalUpdates++;
+	
+			/* this next section includes a critical region for the thread that increments the update counter to threshold */
+			if (SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE == updateCount) {
+				/* make sure that every other thread knows that a specific thread is performing the major update. if
+				 * this thread gets timesliced in the section below while other free-running threads work up another major
+				 * update, that update will be discarded */
+	
+				if  (0 == MM_AtomicOperations::lockCompareExchange(&_majorUpdateThreadEnv, 0, (uintptr_t)env)) {
+					return updateResult;
+				}
+			}
+		}
+	
+		return 0;
+	}
+	
 	
 	/**
 	 * Major update of progress stats: a snapshot returned by minor update is stored into _accumulatedSamples.
@@ -229,9 +249,39 @@ public:
 	 * @param nonEmptyScanLists number of non-empty scan queue lists
 	 * @param cachesQueued total number of items in scan queue lists
 	 */
-
+	MMINLINE	 void 
+	majorUpdate(MM_EnvironmentBase* env, uint64_t updateResult, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush) 
+	{
+		if (0 == (SCAVENGER_COUNTER_OVERFLOW & updateResult)) {
+			/* no overflow so latch updateResult into _accumulatedSamples and record the update */
+			MM_AtomicOperations::setU64(&_accumulatedSamples, updateResult);
+			_scalingUpdateCount += 1;
+			_threadCount = record(env, flush ? nonEmptyScanLists :nonEmptyScanListsFlushCache , flush ? cachesQueuedFlushCache : cachesQueued);
+		} else {
+			/* one or more counters overflowed so discard this update */
+			_overflowCount += 1;
+		}
+		_majorUpdateThreadEnv = 0;
+		MM_AtomicOperations::storeSync();
+	}
 	
-	void flush(MM_EnvironmentBase* env);
+	MMINLINE	 void
+	flush() 
+	{
+		uint64_t updateResult = 0;
+		if (_accumulatingSamples != 0) {
+			updateResult = _accumulatingSamples;
+			MM_AtomicOperations::setU64(&_accumulatingSamples, 0);
+			if (0 == (SCAVENGER_COUNTER_OVERFLOW & updateResult)) {
+				/* no overflow so latch _accumulatingSamples into _accumulatedSamples and record the update */
+				MM_AtomicOperations::setU64(&_accumulatedSamples, updateResult);
+				_scalingUpdateCount += 1;
+				_threadCount = record(env, nonEmptyScanListsFlushCache, cachesQueuedFlushCache);
+			} else {
+				_overflowCount += 1;
+			}
+		}
+	}
 
 	/**
 	 * Reset to initial state (0 accumulated samples, unit scaling factor). This
@@ -260,13 +310,7 @@ public:
 	 * @return the number of times overflow was detected during a major update since start of current gc cycle
 	 */
 	MMINLINE uintptr_t getOverflowCount() { return _overflowCount; }
-	
-	MMINLINE uintptr_t getFlushCount() { return _flushCount; }
 		
-	MMINLINE uintptr_t getMissedCount() { return _missed; }
-	MMINLINE uintptr_t getMissedExtraCount() { return _missed_extra; }
-	
-
 	/**
 	 * Access the update history. This is not thread safe and should be called only after GC completes.
 	 *
@@ -352,7 +396,30 @@ private:
 	 *
 	 * @return The value at _accumulatingSamples
 	 */
-	uint64_t atomicAddThreadUpdate(MM_EnvironmentBase* env, uint64_t threadUpdate, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush = false);
+	uint64_t atomicAddThreadUpdate(uint64_t threadUpdate, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush)
+	{
+		uint64_t newValue = 0;
+		/* Stop compiler optimizing away load of oldValue */
+		volatile uint64_t *localAddr = &_accumulatingSamples;
+		uint64_t oldValue = *localAddr;
+	
+		if (oldValue == MM_AtomicOperations::lockCompareExchangeU64(localAddr, oldValue, oldValue + threadUpdate)) {
+			if(!flush) {
+				nonEmptyScanListsFlushCache = nonEmptyScanLists;
+				cachesQueuedFlushCache = cachesQueued;
+			}
+			newValue = oldValue + threadUpdate;
+			uint64_t updateCount = updates(newValue);
+			if (SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE <= updateCount) {	
+				MM_AtomicOperations::setU64(&_accumulatingSamples, 0);
+				if (SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE < updateCount) {
+					newValue = 0;
+				}
+			}
+		}
+	
+		return newValue;
+	}
 
 	MMINLINE uint64_t
 	sample(uint64_t slotsScanned, uint64_t slotsCopied, uint64_t waitingCount)
