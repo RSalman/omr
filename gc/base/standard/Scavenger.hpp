@@ -148,7 +148,7 @@ public:
 	 */
 private:
 	/**
-	 * Flush copy/scan count stats, the threads reference and remembered set caches before waiting in getNextScanCache.
+	 * Flush copy/scan count updates, the threads reference and remembered set caches before waiting in getNextScanCache.
 	 * This removes the requirement of a synchronization point after calls to completeScan when
 	 * it is followed by reference or remembered set processing.
 	 * @param env - current thread environment

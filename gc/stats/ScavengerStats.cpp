@@ -169,6 +169,7 @@ MM_ScavengerStats::clear(bool firstIncrement)
 	_syncStallTime = 0;
 	_totalDeepStructures = 0;
 	_totalObjsDeepScanned = 0;
+	_depthDeepestStructure = 0;
 	_copyScanUpdates = 0;
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 	/* NOTE: _startTime and _endTime are also not cleared

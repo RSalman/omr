@@ -2205,8 +2205,6 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 	/* GC init (set up per-invocation values) */
 	workerSetupForGC(env);
 
-	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
-
 	/*
 	 * There is a hidden assumption that RS Overflow flag would not be changed between beginning of scavenge and this point,
 	 * otherwise it is hang situation when one group of threads might wait for more work in complete scan and another group of threads
@@ -2229,9 +2227,6 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 		}
 		rootScanner.scanClearable(env);
 	}
-
-	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
-
 	rootScanner.flush(env);
 
 	addCopyCachesToFreeList(env);
@@ -2263,7 +2258,6 @@ MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 		rootScanner.pruneRememberedSet(env);
 	}
 
-	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
 	/* No matter what happens, always sum up the gc stats */
 	mergeThreadGCStats(env);
 }
@@ -3864,7 +3858,6 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 #endif /* OMR_GC_CONCURRENT_SCAVENGER */
 	{
 		scavenge(env);
-		Assert_MM_true(_extensions->copyScanRatio.isEmpty());
 	}
 
 #if defined(OMR_GC_CONCURRENT_SCAVENGER)
@@ -3873,7 +3866,6 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 	bool lastIncrement = true;
 #endif
 
-	Assert_MM_true(_extensions->copyScanRatio.isEmpty());
 	_extensions->incrementScavengerStats._endTime = omrtime_hires_clock();
 
 	/* merge stats from this increment/phase to aggregate cycle stats */

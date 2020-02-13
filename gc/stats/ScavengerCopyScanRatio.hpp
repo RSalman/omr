@@ -124,7 +124,7 @@ private:
 	uintptr_t _historyFoldingFactor;			/** number of major updates per history record */
 	uintptr_t _historyTableIndex;				/** index of history table record that will receive next major update */
 	
-	/** Snapshot of Scan List metrics is taken during minor update in case the update would of triggered a major update had it reached the threshold but doesn't and requires flushing */
+	/** Snapshot of Scan List metrics taken during minor update, used in the case where the update would of triggered a major update had it reached the threshold, but doesn't, and requires flushing */
 	uintptr_t nonEmptyScanListsForFlush;
 	uintptr_t cachesQueuedFlushCacheForFlush;
 
@@ -224,17 +224,21 @@ public:
 			uint64_t updateResult = atomicAddThreadUpdate(updateSample);
 			uint64_t updateCount = updates(updateResult);
 			(*copyScanUpdates)++;
+
 			/* this next section includes a critical region for the thread that increments the update counter to threshold */
 			if (SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE == updateCount) {
 				/* make sure that every other thread knows that a specific thread is performing the major update. if
 				 * this thread gets timesliced in the section below while other free-running threads work up another major
 				 * update, that update will be discarded */
+
 				if  (0 == MM_AtomicOperations::lockCompareExchange(&_majorUpdateThreadEnv, 0, (uintptr_t)env)) {
 					return updateResult;
 				}
 			}
 		}
+
 		return 0;
+
 	}
 	/**
 	 * Major update of progress stats: a snapshot returned by minor update is stored into _accumulatedSamples.
@@ -262,7 +266,7 @@ public:
 	}
 	/**
 	 * Flush major update which may be discarded: accumulator may not of reached threshold to perform a major update. 
-	 * Progress stats in the accumulator would be discarded if threshold is not reached and cycle completes. 
+	 * Progress stats in the accumulator will be discarded if threshold is not reached and cycle completes. 
 	 * Cached Scan queue metrics are used for flushing, a snapshot of these metrics is taken during minor update which would 
 	 * of triggered a major update had it reached the threshold.
 	 */
@@ -274,7 +278,7 @@ public:
 			updateResult = _accumulatingSamples;
 			MM_AtomicOperations::setU64(&_accumulatingSamples, 0);
 			if (0 == (SCAVENGER_COUNTER_OVERFLOW & updateResult)) {
-				/* no overflow so latch _accumulatingSamples into _accumulatedSamples and record the update */
+				/* no overflow so latch updateResult into _accumulatedSamples and record the update */
 				MM_AtomicOperations::setU64(&_accumulatedSamples, updateResult);
 				_scalingUpdateCount += 1;
 				_threadCount = record(env, nonEmptyScanListsForFlush, cachesQueuedFlushCacheForFlush);
