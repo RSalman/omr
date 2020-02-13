@@ -123,11 +123,12 @@ private:
 	uintptr_t _threadCount;						/**< number of gc threads participating in current gc cycle */
 	uintptr_t _historyFoldingFactor;			/** number of major updates per history record */
 	uintptr_t _historyTableIndex;				/** index of history table record that will receive next major update */
+	
+	/** Snapshot of Scan List metrics is taken during minor update in case the update would of triggered a major update had it reached the threshold but doesn't and requires flushing */
+	uintptr_t nonEmptyScanListsForFlush;
+	uintptr_t cachesQueuedFlushCacheForFlush;
+
 	UpdateHistory _historyTable[SCAVENGER_UPDATE_HISTORY_SIZE];
-	
-	uint64_t nonEmptyScanListsFlushCache;
-	uint64_t cachesQueuedFlushCache;
-	
 	/* Function members */
 public:
 	/**
@@ -144,8 +145,8 @@ public:
 		,_threadCount(0)
 		,_historyFoldingFactor(1)
 		,_historyTableIndex(0)
-		,nonEmptyScanListsFlushCache(0)
-		,cachesQueuedFlushCache(0)
+		,nonEmptyScanListsForFlush(0)
+		,cachesQueuedFlushCacheForFlush(0)
 	{
 		memset(_historyTable, 0, SCAVENGER_UPDATE_HISTORY_SIZE * sizeof(UpdateHistory));
 	}
@@ -199,11 +200,11 @@ public:
 	 * @return if non zero, it's time for major update. the returned value is to be passed to majorUpdate
 	 */
 	MMINLINE uint64_t 
-	update(MM_EnvironmentBase* env, uint64_t *slotsScanned, uint64_t *slotsCopied, uint64_t waitingCount, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush = false)
+	update(MM_EnvironmentBase* env, uint64_t *slotsScanned, uint64_t *slotsCopied, uint64_t waitingCount, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, uintptr_t *copyScanUpdates, bool flush = false)
 	{
 		if(!flush) {
-			nonEmptyScanListsFlushCache = nonEmptyScanLists;
-			cachesQueuedFlushCache = cachesQueued;
+			nonEmptyScanListsForFlush = nonEmptyScanLists;
+			cachesQueuedFlushCacheForFlush = cachesQueued;
 		}
 		
 		if (SCAVENGER_SLOTS_SCANNED_PER_THREAD_UPDATE <= *slotsScanned || flush) {
@@ -222,7 +223,7 @@ public:
 			uint64_t updateSample = sample(scannedCount, copiedCount, waitingCount);
 			uint64_t updateResult = atomicAddThreadUpdate(updateSample);
 			uint64_t updateCount = updates(updateResult);
-			//env->_totalUpdates++;
+			(*copyScanUpdates)++;
 			/* this next section includes a critical region for the thread that increments the update counter to threshold */
 			if (SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE == updateCount) {
 				/* make sure that every other thread knows that a specific thread is performing the major update. if
@@ -244,21 +245,27 @@ public:
 	 * @param cachesQueued total number of items in scan queue lists
 	 */
 	MMINLINE void
-	majorUpdate(MM_EnvironmentBase* env, uint64_t updateResult, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued, bool flush = false) 
+	majorUpdate(MM_EnvironmentBase* env, uint64_t updateResult, uintptr_t nonEmptyScanLists, uintptr_t cachesQueued) 
 	{
 		if (0 == (SCAVENGER_COUNTER_OVERFLOW & updateResult)) {
 			/* no overflow so latch updateResult into _accumulatedSamples and record the update */
 			MM_AtomicOperations::setU64(&_accumulatedSamples, updateResult);
 			_scalingUpdateCount += 1;
-			_threadCount = record(env, flush ? nonEmptyScanLists : nonEmptyScanListsFlushCache , flush ? cachesQueuedFlushCache : cachesQueued);
+			_threadCount = record(env, nonEmptyScanLists, cachesQueued);
 		} else {
 			/* one or more counters overflowed so discard this update */
 			_overflowCount += 1;
 		}
-		_majorUpdateThreadEnv = 0;
+		/* Ensure updates are visible to other threads that go on to do a major update */
 		MM_AtomicOperations::storeSync();
+		_majorUpdateThreadEnv = 0;
 	}
-	
+	/**
+	 * Flush major update which may be discarded: accumulator may not of reached threshold to perform a major update. 
+	 * Progress stats in the accumulator would be discarded if threshold is not reached and cycle completes. 
+	 * Cached Scan queue metrics are used for flushing, a snapshot of these metrics is taken during minor update which would 
+	 * of triggered a major update had it reached the threshold.
+	 */
 	MMINLINE void
 	flush(MM_EnvironmentBase* env) 
 	{
@@ -270,7 +277,7 @@ public:
 				/* no overflow so latch _accumulatingSamples into _accumulatedSamples and record the update */
 				MM_AtomicOperations::setU64(&_accumulatedSamples, updateResult);
 				_scalingUpdateCount += 1;
-				_threadCount = record(env, nonEmptyScanListsFlushCache, cachesQueuedFlushCache);
+				_threadCount = record(env, nonEmptyScanListsForFlush, cachesQueuedFlushCacheForFlush);
 			} else {
 				_overflowCount += 1;
 			}
