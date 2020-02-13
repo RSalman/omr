@@ -162,16 +162,6 @@ public:
 		uint64_t accumulatedSamples = MM_AtomicOperations::getU64(&_accumulatedSamples);
 		return getScalingFactor(env, _threadCount, waits(accumulatedSamples), copied(accumulatedSamples), scanned(accumulatedSamples), updates(accumulatedSamples));
 	}
-
-	/**
-	 * Check if there are updates not recorded to the history table (i.e updates left to flush). 
-	 * This is not thread safe and should be called only after GC completes.
-	 *
-	 * @return true if accumulator is empty
-	 */
-	MMINLINE bool
-	isEmpty()
-	{ return (updates(_accumulatingSamples) == 0); }
 	
 	/**
 	 * Estimate and return maximal lower bound for cache size scaling factor from accumulated wait/copy/scan
