@@ -162,7 +162,7 @@ public:
 		uint64_t accumulatedSamples = MM_AtomicOperations::getU64(&_accumulatedSamples);
 		return getScalingFactor(env, _threadCount, waits(accumulatedSamples), copied(accumulatedSamples), scanned(accumulatedSamples), updates(accumulatedSamples));
 	}
-	
+
 	/**
 	 * Estimate and return maximal lower bound for cache size scaling factor from accumulated wait/copy/scan
 	 * updates, or 0 if none received yet. Use this form for estimating scaling factor from history records.
@@ -234,9 +234,8 @@ public:
 		}
 		
 		return 0;
-
 	}
-
+	
 	/**
 	 * Major update of progress stats: a snapshot returned by minor update is stored into _accumulatedSamples.
 	 * This is the value used for subsequent calculations of copy/scan ratios and average wait counts, up until 
