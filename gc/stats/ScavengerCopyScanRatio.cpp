@@ -32,7 +32,8 @@
 void
 MM_ScavengerCopyScanRatio::reset(MM_EnvironmentBase* env, bool resetHistory)
 {
-	_accumulatingSamples = 0;
+	/* Accumulator must be empty, all updates should be flushed by the time we reset*/
+	Assert_MM_true(_accumulatingSamples == 0);
 	_accumulatedSamples = SCAVENGER_COUNTER_DEFAULT_ACCUMULATOR;
 	_threadCount = env->getExtensions()->dispatcher->activeThreadCount();
 	if (resetHistory) {
