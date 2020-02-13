@@ -273,13 +273,15 @@ public:
 	{
 		uint64_t updateResult = _accumulatingSamples;
 		_accumulatingSamples = 0;
-		if ((0 != updateResult) && (0 == (SCAVENGER_COUNTER_OVERFLOW & updateResult))) {
-			/* no overflow so latch updateResult into _accumulatedSamples and record the update */
-			MM_AtomicOperations::setU64(&_accumulatedSamples, updateResult);
-			_scalingUpdateCount += 1;
-			_threadCount = record(env, nonEmptyScanListsForFlush, cachesQueuedFlushCacheForFlush);
-		} else {
-			_overflowCount += 1;
+		if (0 != updateResult) {
+			if (0 == (SCAVENGER_COUNTER_OVERFLOW & updateResult)) {
+				/* no overflow so latch updateResult into _accumulatedSamples and record the update */
+				MM_AtomicOperations::setU64(&_accumulatedSamples, updateResult);
+				_scalingUpdateCount += 1;
+				_threadCount = record(env, nonEmptyScanListsForFlush, cachesQueuedFlushCacheForFlush);
+			} else {
+				_overflowCount += 1;
+			}
 		}
 		reset(env, false);
 	}
