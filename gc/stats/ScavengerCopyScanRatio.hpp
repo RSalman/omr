@@ -163,9 +163,15 @@ public:
 		return getScalingFactor(env, _threadCount, waits(accumulatedSamples), copied(accumulatedSamples), scanned(accumulatedSamples), updates(accumulatedSamples));
 	}
 
+	/**
+	 * Check if there are updates not recorded to the history table (i.e updates left to flush). 
+	 * This is not thread safe and should be called only after GC completes.
+	 *
+	 * @return true if accumulator is empty
+	 */
 	MMINLINE bool
 	isEmpty()
-	{ return updates(_accumulatingSamples) == 0; }
+	{ return (updates(_accumulatingSamples) == 0); }
 	
 	/**
 	 * Estimate and return maximal lower bound for cache size scaling factor from accumulated wait/copy/scan
@@ -230,16 +236,17 @@ public:
 				/* make sure that every other thread knows that a specific thread is performing the major update. if
 				 * this thread gets timesliced in the section below while other free-running threads work up another major
 				 * update, that update will be discarded */
-
+				 
 				if  (0 == MM_AtomicOperations::lockCompareExchange(&_majorUpdateThreadEnv, 0, (uintptr_t)env)) {
 					return updateResult;
 				}
 			}
 		}
-
+		
 		return 0;
 
 	}
+
 	/**
 	 * Major update of progress stats: a snapshot returned by minor update is stored into _accumulatedSamples.
 	 * This is the value used for subsequent calculations of copy/scan ratios and average wait counts, up until 
