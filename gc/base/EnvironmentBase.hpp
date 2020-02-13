@@ -143,7 +143,6 @@ public:
 	MM_WorkPacketStats _workPacketStatsRSScan;   /**< work packet Stats specifically for RS Scan Phase of Concurrent STW GC */
 
 	uint64_t _slaveThreadCpuTimeNanos;	/**< Total CPU time used by this slave thread (or 0 for non-slaves) */
-	uint64_t _totalUpdates;
 
 	MM_FreeEntrySizeClassStats _freeEntrySizeClassStats;  /**< GC thread local statistics structure for heap free entry size (sizeClass) distribution */
 
@@ -645,7 +644,6 @@ public:
 		,_failAllocOnExcessiveGC(false)
 		,_currentTask(NULL)
 		,_slaveThreadCpuTimeNanos(0)
-		,_totalUpdates(0)
 		,_freeEntrySizeClassStats()
 		,_oolTraceAllocationBytes(0)
 		,approxScanCacheCount(0)
@@ -698,7 +696,6 @@ public:
 		,_failAllocOnExcessiveGC(false)
 		,_currentTask(NULL)
 		,_slaveThreadCpuTimeNanos(0)
-		,_totalUpdates(0)
 		,_freeEntrySizeClassStats()
 		,_oolTraceAllocationBytes(0)
 		,approxScanCacheCount(0)
