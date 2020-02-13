@@ -255,7 +255,7 @@ public:
 	/* Flush remaining Copy Scan updates which would otherwise be discarded 
 	 * @param majorFlush last thread to flush updates should perform a major flush (push accumulated updates to history record) 
 	 */ 
-	MMINLINE void flushCopyScanCounts(MM_EnvironmentBase* env, bool majorFlush);
+	MMINLINE void flushCopyScanCounts(MM_EnvironmentBase* env, bool majorFlush = false);
 	MMINLINE void updateCopyScanCounts(MM_EnvironmentBase* env, uint64_t slotsScanned, uint64_t slotsCopied);
 	bool splitIndexableObjectScanner(MM_EnvironmentStandard *env, GC_ObjectScanner *objectScanner, uintptr_t startIndex, omrobjectptr_t *rememberedSetSlot);
 
