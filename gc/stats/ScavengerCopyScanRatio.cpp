@@ -97,6 +97,11 @@ MM_ScavengerCopyScanRatio::record(MM_EnvironmentBase* env, uintptr_t nonEmptySca
 	historyRecord->copied += copied(accumulatedSamples);
 	historyRecord->scanned += scanned(accumulatedSamples);
 	historyRecord->updates += updateCount;
+
+	if((updateCount <= 0) || (updateCount > SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE)) {
+		omrtty_printf("{SCAV: ** UPDATE COUNT: %i}\n", updateCount);
+	}
+
 	Assert_MM_true((updateCount > 0) && (updateCount <= SCAVENGER_THREAD_UPDATES_PER_MAJOR_UPDATE));
 	historyRecord->threads += threadCount;
 	historyRecord->majorUpdates += 1;
