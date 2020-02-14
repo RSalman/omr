@@ -2185,7 +2185,8 @@ MM_Scavenger::completeScan(MM_EnvironmentStandard *env)
 		}
 	}
 
-	Assert_MM_true(env->_scavengerStats._slotsScanned == 0 && env->_scavengerStats._slotsCopied == 0);
+	Assert_MM_true(env->_scavengerStats._slotsScanned == 0);
+	Assert_MM_true(env->_scavengerStats._slotsCopied == 0);
 
 	/* A slow  thread can see backOutFlag raised by a fast thread aborting in the next scan cycle.
 	 * By checking that thread local doneIndex of the current scan cycle matches the doneIndex from scan cycle that raised the flag,
