@@ -2022,6 +2022,10 @@ MM_Scavenger::getNextScanCache(MM_EnvironmentStandard *env)
 		omrthread_monitor_exit(_scanCacheMonitor);
 	}
 
+ 	if (cache == NULL && env->_scavengerStats._slotsScanned != 0){
+ 		flushBuffersForGetNextScanCache(env);
+ 	}
+
 	return cache;
 }
 
