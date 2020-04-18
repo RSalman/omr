@@ -50,9 +50,10 @@ class MM_Task;
 class MM_Dispatcher : public MM_BaseVirtual
 {
 private:
-	MM_Task *_task;
 	
 protected:
+	MM_Task *_task;
+	
 	bool initialize(MM_EnvironmentBase *env);
 	
 	virtual void prepareThreadsForTask(MM_EnvironmentBase *env, MM_Task *task, uintptr_t threadCount);

@@ -126,6 +126,8 @@ public:
 
 	MMINLINE omrsig_handler_fn getSignalHandler() {return _handler;}
 	MMINLINE void * getSignalHandlerArg() {return _handler_arg;}
+	
+	void determineSlaveStatus(uintptr_t slaveID);
 
 	static MM_ParallelDispatcher *newInstance(MM_EnvironmentBase *env, omrsig_handler_fn handler, void* handler_arg, uintptr_t defaultOSStackSize);
 	virtual void kill(MM_EnvironmentBase *env);
