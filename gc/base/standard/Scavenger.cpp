@@ -4001,6 +4001,9 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 	reportScavengeStart(env);
 	_extensions->incrementScavengerStats._startTime = omrtime_hires_clock();
 
+	MM_GCExtensions *extensions = MM_GCExtensions::getExtensions(env);
+	extensions->checkAndVerifyOwnableSynchronizerObjectList(env);
+
 #if defined(OMR_GC_CONCURRENT_SCAVENGER)
 	if (_extensions->concurrentScavenger) {
 		scavengeIncremental(env);
@@ -4009,6 +4012,9 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 	{
 		scavenge(env);
 	}
+	
+	extensions->checkAndVerifyOwnableSynchronizerObjectList(env);
+
 
 #if defined(OMR_GC_CONCURRENT_SCAVENGER)
 	bool lastIncrement = !isConcurrentCycleInProgress();
@@ -5459,9 +5465,15 @@ MM_Scavenger::masterThreadConcurrentCollect(MM_EnvironmentBase *env)
 
 		_currentPhaseConcurrent = true;
 
+		//MM_GCExtensions *extensions = MM_GCExtensions::getExtensions(env);
+
+		//extensions->checkAndVerifyOwnableSynchronizerObjectList(env);
+
 		MM_ConcurrentScavengeTask scavengeTask(env, _dispatcher, this, MM_ConcurrentScavengeTask::SCAVENGE_SCAN, env->_cycleState);
 		/* Concurrent background task will run with different (typically lower) number of threads. */
 		_dispatcher->run(env, &scavengeTask, _extensions->concurrentScavengerBackgroundThreads);
+
+		//extensions->checkAndVerifyOwnableSynchronizerObjectList(env);
 
 		_currentPhaseConcurrent = false;
 
