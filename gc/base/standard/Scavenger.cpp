@@ -3995,6 +3995,7 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 	reportScavengeStart(env);
 	_extensions->incrementScavengerStats._startTime = omrtime_hires_clock();
 
+	omrtty_printf("masterThreadGarbageCollect START -> Check [%u] \n", _concurrentPhase);
 	MM_GCExtensions *extensions = MM_GCExtensions::getExtensions(env);
 	extensions->checkAndVerifyOwnableSynchronizerObjectList(env);
 
@@ -4007,6 +4008,7 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 		scavenge(env);
 	}
 	
+	omrtty_printf("masterThreadGarbageCollect END -> Check [%u] \n", _concurrentPhase);
 	extensions->checkAndVerifyOwnableSynchronizerObjectList(env);
 
 
@@ -4999,6 +5001,9 @@ MM_Scavenger::scavengeScan(MM_EnvironmentBase *envBase)
 
 	restoreMasterThreadTenureTLHRemainders(env);
 
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+	omrtty_printf("scavengeScan - about to dispatch\n");
+
 	MM_ConcurrentScavengeTask scavengeTask(env, _dispatcher, this, MM_ConcurrentScavengeTask::SCAVENGE_SCAN, env->_cycleState);
 	_dispatcher->run(env, &scavengeTask);
 
@@ -5327,6 +5332,8 @@ MM_Scavenger::scavengeIncremental(MM_EnvironmentBase *env)
 			_concurrentPhase = concurrent_phase_scan;
 
 			if (isBackOutFlagRaised()) {
+				OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+				omrtty_printf("scavengeIncremental::concurrent_phase_roots Aborted\n");
 				/* if we aborted during root processing, continue with the cycle while still in STW mode */
 				mergeIncrementGCStats(env, false);
 				clearIncrementGCStats(env, false);
@@ -5478,6 +5485,9 @@ MM_Scavenger::masterThreadConcurrentCollect(MM_EnvironmentBase *env)
 		//MM_GCExtensions *extensions = MM_GCExtensions::getExtensions(env);
 
 		//extensions->checkAndVerifyOwnableSynchronizerObjectList(env);
+
+		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+		omrtty_printf("{SCAV: masterThreadConcurrentCollect:: About to dispatch}\n");
 
 		MM_ConcurrentScavengeTask scavengeTask(env, _dispatcher, this, MM_ConcurrentScavengeTask::SCAVENGE_SCAN, env->_cycleState);
 		/* Concurrent background task will run with different (typically lower) number of threads. */
