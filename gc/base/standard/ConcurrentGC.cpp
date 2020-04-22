@@ -2220,7 +2220,7 @@ MM_ConcurrentGC::signalThreadsToActivateWriteBarrier(MM_EnvironmentBase *env)
 		if (env->acquireExclusiveVMAccessForGC(this, true, false)) {
 			OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 			omrtty_printf("ConcurrentGC Cycle START STW \n");
-			MM_GCExtensions::getExtensions(env)->checkAndVerifyOwnableSynchronizerObjectList(env);
+			//MM_GCExtensions::getExtensions(env)->checkAndVerifyOwnableSynchronizerObjectList(env);
 			MM_CycleState *previousCycleState = env->_cycleState;
 			_concurrentCycleState = MM_CycleState();
 			_concurrentCycleState._type = _cycleType;
@@ -2742,14 +2742,14 @@ MM_ConcurrentGC::concurrentFinalCollection(MM_EnvironmentBase *env, MM_MemorySub
 		if(env->acquireExclusiveVMAccessForGC(this, true, true)) {
 			OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 			omrtty_printf("ConcurrentGC Cycle END STW 1/2\n");
-			MM_GCExtensions::getExtensions(env)->checkAndVerifyOwnableSynchronizerObjectList(env);
+			//MM_GCExtensions::getExtensions(env)->checkAndVerifyOwnableSynchronizerObjectList(env);
 			/* We got exclusive control first so do collection */
 			reportConcurrentCollectionStart(env);
 			uint64_t startTime = omrtime_hires_clock();
 			garbageCollect(env, subSpace, NULL, J9MMCONSTANT_IMPLICIT_GC_DEFAULT, NULL, NULL, NULL);
 			reportConcurrentCollectionEnd(env, omrtime_hires_clock() - startTime);
 			omrtty_printf("ConcurrentGC Cycle END STW 2/2\n");
-			MM_GCExtensions::getExtensions(env)->checkAndVerifyOwnableSynchronizerObjectList(env);
+			//MM_GCExtensions::getExtensions(env)->checkAndVerifyOwnableSynchronizerObjectList(env);
 
 			env->releaseExclusiveVMAccessForGC();
 		}
