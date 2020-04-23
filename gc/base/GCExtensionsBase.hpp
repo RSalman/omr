@@ -219,6 +219,8 @@ protected:
 
 public:
 	bool _lazyCollectorInit; /**< Are we initializing without a collector? */
+	bool dp;
+	OMRFileStream* _pf; /**< Are we initializing without a collector? */
 
 	MM_CollectorLanguageInterface* collectorLanguageInterface;
 
@@ -835,6 +837,8 @@ protected:
 public:
 	static MM_GCExtensionsBase* newInstance(MM_EnvironmentBase* env);
 	virtual void kill(MM_EnvironmentBase* env);
+	
+	void initOwnableDebug();
 
 	/**
 	 * Gets a pointer to the base extensions.
@@ -1332,6 +1336,8 @@ public:
 		, _objectMap(NULL)
 #endif /* defined(OMR_GC_OBJECT_MAP) */
 		, _lazyCollectorInit(false)
+		,dp (false)
+		,_pf (NULL)
 		, collectorLanguageInterface(NULL)
 		, _tenureBase(NULL)
 		, _tenureSize(0)

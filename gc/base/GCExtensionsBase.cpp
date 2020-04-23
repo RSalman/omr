@@ -57,8 +57,23 @@ MM_GCExtensionsBase::kill(MM_EnvironmentBase* env)
 {
 	/* Avoid using OMR::GC::Forge to free memory for the extension, since OMR::GC::Forge was not used to allocate the memory */
 	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+
+	if(dp) {
+		omrfilestream_close(_pf);
+		_pf = NULL;
+	}
+	
 	tearDown(env);
 	omrmem_free_memory(this);
+}
+
+void
+MM_GCExtensionsBase::initOwnableDebug() {
+
+	OMRPORT_ACCESS_FROM_OMRVM(_omrVM);
+	if(dp) {
+		_pf = omrfilestream_open("debug-output.log", EsOpenWrite | EsOpenCreate | EsOpenTruncate, 0666);
+	}
 }
 
 bool
@@ -67,7 +82,7 @@ MM_GCExtensionsBase::initialize(MM_EnvironmentBase* env)
 	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 	uintptr_t *pageSizes = NULL;
 	uintptr_t *pageFlags = NULL;
-
+	
 #if defined(OMR_GC_COMPRESSED_POINTERS) && defined(OMR_GC_FULL_POINTERS)
 	_compressObjectReferences = env->compressObjectReferences();
 #endif /* defined(OMR_GC_COMPRESSED_POINTERS) && defined(OMR_GC_FULL_POINTERS) */
