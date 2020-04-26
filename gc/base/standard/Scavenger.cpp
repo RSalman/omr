@@ -1591,6 +1591,20 @@ MM_Scavenger::copy(MM_EnvironmentStandard *env, MM_ForwardedHeader* forwardedHea
 		omrtty_printf("{SCAV: Copied %p[%p] -> %p[%p]}\n", forwardedHeader->getObject(), *((uintptr_t*)(forwardedHeader->getObject())), destinationObjectPtr, *((uintptr_t*)destinationObjectPtr));
 #endif /* OMR_SCAVENGER_TRACE_COPY */
 
+
+
+		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+		if(_extensions->dp) {
+			J9Class*  clazz = J9GC_J9OBJECT_CLAZZ(destinationObjectPtr, env);
+			J9UTF8* currentClassName = J9ROMCLASS_CLASSNAME(clazz->romClass);
+
+			bool noFair = J9UTF8_LITERAL_EQUALS(J9UTF8_DATA(currentClassName), J9UTF8_LENGTH(currentClassName), "java/util/concurrent/locks/ReentrantLock$NonfairSync");
+			bool fair = J9UTF8_LITERAL_EQUALS(J9UTF8_DATA(currentClassName), J9UTF8_LENGTH(currentClassName), "java/util/concurrent/locks/ReentrantReadWriteLock$FairSync");
+			if(noFair || fair) {
+				omrfilestream_printf(_extensions->_pf, "*** [%i] COPY [%p -> %p] [%.*s] *** \n", env->getSlaveID(), forwardedHeader->getObject(), destinationObjectPtr, currentClassName->length, currentClassName->data);
+			}
+		}
+
 #if defined(OMR_GC_CONCURRENT_SCAVENGER)
 	/* Concurrent Scavenger can update forwarding pointer only after the object has been copied
 	 * (since mutator may access the object as soon as forwarding pointer is installed) */
