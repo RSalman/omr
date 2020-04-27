@@ -4009,7 +4009,10 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 	reportScavengeStart(env);
 	_extensions->incrementScavengerStats._startTime = omrtime_hires_clock();
 
-if(_extensions->dp)	omrfilestream_printf(_extensions->_pf, "masterThreadGarbageCollect START -> Check [%u] \n", _concurrentPhase);
+#if defined(OMR_GC_CONCURRENT_SCAVENGER)
+	if(_extensions->dp)	omrfilestream_printf(_extensions->_pf, "masterThreadGarbageCollect START -> Check [%u] \n", _concurrentPhase);
+#endif /* OMR_GC_CONCURRENT_SCAVENGER */
+
 	MM_GCExtensions *extensions = MM_GCExtensions::getExtensions(env);
 	extensions->checkAndVerifyOwnableSynchronizerObjectList(env);
 
@@ -4021,8 +4024,10 @@ if(_extensions->dp)	omrfilestream_printf(_extensions->_pf, "masterThreadGarbageC
 	{
 		scavenge(env);
 	}
-	
-if(_extensions->dp)	omrfilestream_printf(_extensions->_pf, "masterThreadGarbageCollect END -> Check [%u] \n", _concurrentPhase);
+
+#if defined(OMR_GC_CONCURRENT_SCAVENGER)
+	if(_extensions->dp)	omrfilestream_printf(_extensions->_pf, "masterThreadGarbageCollect END -> Check [%u] \n", _concurrentPhase);
+#endif /* OMR_GC_CONCURRENT_SCAVENGER */
 	extensions->checkAndVerifyOwnableSynchronizerObjectList(env);
 
 
