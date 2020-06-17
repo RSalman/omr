@@ -524,10 +524,6 @@ MM_ParallelDispatcher::prepareThreadsForTask(MM_EnvironmentBase *env, MM_Task *t
 
 	task->setSynchronizeMutex(_synchronizeMutex);
 
-	if (_extensions->releaseLock) {
-		omrthread_monitor_exit(_slaveThreadMutex);
-	}
-
 	if (_extensions->smartDispatchNotify) {
 		/* Update Master Thread mode and status */
 		_statusTable[env->getSlaveID()] = slave_status_reserved;
@@ -543,9 +539,7 @@ MM_ParallelDispatcher::prepareThreadsForTask(MM_EnvironmentBase *env, MM_Task *t
 		wakeUpThreads(threadCount);
 	}
 
-	if (!_extensions->releaseLock) {
-		omrthread_monitor_exit(_slaveThreadMutex);
-	}
+	omrthread_monitor_exit(_slaveThreadMutex);
 }
 
 void

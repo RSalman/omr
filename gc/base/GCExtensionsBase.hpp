@@ -500,10 +500,7 @@ public:
 	double aliasInhibitingThresholdPercentage; /**< percentage of threads that can be blocked before copy cache aliasing is inhibited (set through aliasInhibitingThresholdPercentage=) */
 	
 	bool smartDispatchNotify;
-	bool releaseLock;
-	
 	uint64_t notifyStartTime;
-	
 	uintptr_t syntheticCount;
 
 	enum HeapInitializationSplitHeapSection {
@@ -1573,7 +1570,6 @@ public:
 		, enableSplitHeap(false)
 		, aliasInhibitingThresholdPercentage(0.20)
 		, smartDispatchNotify(false)
-		, releaseLock(false)
 		, notifyStartTime(0)
 		, syntheticCount(1)
 		, splitHeapSection(HEAP_INITIALIZATION_SPLIT_HEAP_UNKNOWN)
