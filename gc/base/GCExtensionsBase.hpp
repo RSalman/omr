@@ -502,6 +502,8 @@ public:
 	bool smartDispatchNotify;
 	uint64_t notifyStartTime;
 	uintptr_t syntheticCount;
+	
+	uintptr_t avereageTimeToCollect;
 
 	enum HeapInitializationSplitHeapSection {
 		HEAP_INITIALIZATION_SPLIT_HEAP_UNKNOWN = 0,

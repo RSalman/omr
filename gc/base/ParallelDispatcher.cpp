@@ -161,7 +161,12 @@ MM_ParallelDispatcher::slaveEntryPoint(MM_EnvironmentBase *env)
 		while(slave_status_waiting == _statusTable[slaveID]) {
 			omrthread_monitor_wait(_slaveThreadMutex);
 			if (_extensions->smartDispatchNotify) {
-				determineSlaveStatus(slaveID);
+				if (_slaveThreadsReservedForGC && _threadsToReserve > 0) {
+					Assert_MM_true(slave_status_dying != _statusTable[slaveID]);
+					_threadsToReserve--;
+					_statusTable[slaveID] = slave_status_reserved;
+					_taskTable[slaveID] = _task;
+				}
 			}
 		}
 
@@ -178,21 +183,6 @@ MM_ParallelDispatcher::slaveEntryPoint(MM_EnvironmentBase *env)
 		}
 	}
 	omrthread_monitor_exit(_slaveThreadMutex);	
-}
-
-void
-MM_ParallelDispatcher::determineSlaveStatus(uintptr_t slaveID)
-{
-	/* Only times the slave thread gets notified is if either:
-	 * 1) prepareThreadsForTask - in which case we know thread mode must be: slave_status_reserved and we're not shutting down
-	 * 2) shutDownThreads - in which case the _inShutdown flag will be set and thread mode will already be set slave_status_dying
-	 * 3) cleanupAfterTask this will only happen if _inShutdown flag is set, we know we'll shutting down. The thread mode is irrelevant to use,
-	 *    it may be waiting or slave_status_dying
-	 */
-	if(!_inShutdown) {
-		_statusTable[slaveID] = slave_status_reserved;
-		_taskTable[slaveID] = _task;
-	}
 }
 
 void
@@ -409,15 +399,21 @@ MM_ParallelDispatcher::wakeUpThreads(uintptr_t count)
 
 	_extensions->notifyStartTime = omrtime_hires_clock();
 	if (_extensions->smartDispatchNotify) {
-		for (uintptr_t threads = 0 ; threads < count; threads++ ) {
-			omrthread_monitor_notify(_slaveThreadMutex);
+		Assert_MM_true(_threadsToReserve == 0);
+		if (_slaveThreadsReservedForGC) {
+			_threadsToReserve = count;
 		}
+
+//		for (uintptr_t threads = 0 ; threads < count; threads++ ) {
+//			omrthread_monitor_notify(_slaveThreadMutex);
+//		}
+		omrthread_monitor_notify_all(_slaveThreadMutex);
 	} else {
 		omrthread_monitor_notify_all(_slaveThreadMutex);
 	}
 
 	uint64_t totalTime = (omrtime_hires_clock() - _extensions->notifyStartTime);
-	omrtty_printf(" -> Time to Notify: %llu ------ \n", totalTime);
+	omrtty_printf(" -> Time to Notify: %llu", totalTime);
 }
 
 /**
@@ -472,7 +468,7 @@ MM_ParallelDispatcher::recomputeActiveThreadCountForTask(MM_EnvironmentBase *env
 
 	task->setThreadCount(_activeThreadCount);
 	OMRPORT_ACCESS_FROM_OMRVM(_extensions->getOmrVM());
-	omrtty_printf("\n\n ------ Thread Count: %i",  _activeThreadCount);
+	omrtty_printf("------ Thread Count: %i",  _activeThreadCount);
 
  	return taskActiveThreadCount;
 }
@@ -514,6 +510,7 @@ MM_ParallelDispatcher::prepareThreadsForTask(MM_EnvironmentBase *env, MM_Task *t
 	omrthread_monitor_enter(_slaveThreadMutex);
 	
 	if (_extensions->smartDispatchNotify) {
+		Assert_MM_true(_task == NULL);
 		_task = task;
 	}
 	
@@ -571,8 +568,9 @@ void
 MM_ParallelDispatcher::cleanupAfterTask(MM_EnvironmentBase *env)
 {
 	omrthread_monitor_enter(_slaveThreadMutex);
-	
+	_task = NULL;
 	_slaveThreadsReservedForGC = false;
+	Assert_MM_true(_threadsToReserve == 0);
 	
 	if (_inShutdown) {
 		omrthread_monitor_notify_all(_slaveThreadMutex);

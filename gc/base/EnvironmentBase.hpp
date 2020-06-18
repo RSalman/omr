@@ -180,6 +180,8 @@ public:
 	uint64_t _concurrentScavengerSwitchCount; /**< local counter of cycle start and cycle end transitions */
 #endif /* defined(OMR_GC_CONCURRENT_SCAVENGER) */
 
+	uint64_t timeToStartCollection;
+
 private:
 
 protected:
@@ -699,6 +701,7 @@ public:
 #if defined(OMR_GC_CONCURRENT_SCAVENGER)
 		,_concurrentScavengerSwitchCount(0)
 #endif /* defined(OMR_GC_CONCURRENT_SCAVENGER) */
+		,timeToStartCollection(0)
 
 	{
 		_typeId = __FUNCTION__;

@@ -46,6 +46,7 @@ class MM_ParallelDispatcher : public MM_Dispatcher
 	 * Data members
 	 */
 private:
+	uintptr_t _threadsToReserve;
 protected:
 	MM_GCExtensionsBase *_extensions;
 
@@ -127,8 +128,6 @@ public:
 	MMINLINE omrsig_handler_fn getSignalHandler() {return _handler;}
 	MMINLINE void * getSignalHandlerArg() {return _handler_arg;}
 	
-	void determineSlaveStatus(uintptr_t slaveID);
-
 	static MM_ParallelDispatcher *newInstance(MM_EnvironmentBase *env, omrsig_handler_fn handler, void* handler_arg, uintptr_t defaultOSStackSize);
 	virtual void kill(MM_EnvironmentBase *env);
 
@@ -136,6 +135,7 @@ public:
 
 	MM_ParallelDispatcher(MM_EnvironmentBase *env, omrsig_handler_fn handler, void* handler_arg, uintptr_t defaultOSStackSize) :
 		MM_Dispatcher(env)
+		,_threadsToReserve(0)
 		,_extensions(MM_GCExtensionsBase::getExtensions(env->getOmrVM()))
 		,_threadShutdownCount(0)
 		,_threadTable(NULL)
