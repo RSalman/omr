@@ -387,7 +387,13 @@ MM_ParallelDispatcher::shutDownThreads()
 void
 MM_ParallelDispatcher::wakeUpThreads(uintptr_t count)
 {
-	omrthread_monitor_notify_all(_slaveThreadMutex);	
+	OMRPORT_ACCESS_FROM_OMRVM(_extensions->getOmrVM());
+	_extensions->notifyStartTime = omrtime_hires_clock();
+
+	omrthread_monitor_notify_all(_slaveThreadMutex);
+
+	uint64_t totalTime = (omrtime_hires_clock() - _extensions->notifyStartTime);
+	omrtty_printf(" -> Time to Notify: %llu", totalTime);
 }
 
 /**
@@ -428,7 +434,21 @@ MM_ParallelDispatcher::recomputeActiveThreadCountForTask(MM_EnvironmentBase *env
 	 * available and ready to run).
 	 */
 	uintptr_t taskActiveThreadCount = OMR_MIN(_activeThreadCount, threadCount);
-	task->setThreadCount(taskActiveThreadCount);
+
+	_extensions->syntheticCount--;
+
+	if (_extensions->syntheticCount == 0) {
+		_extensions->syntheticCount = env->getExtensions()->gcThreadCount;
+ 	}
+
+
+
+	taskActiveThreadCount = _activeThreadCount = _extensions->syntheticCount;
+
+	task->setThreadCount(_activeThreadCount);
+	OMRPORT_ACCESS_FROM_OMRVM(_extensions->getOmrVM());
+	omrtty_printf("------ Thread Count: %i",  _activeThreadCount);
+
  	return taskActiveThreadCount;
 }
 
