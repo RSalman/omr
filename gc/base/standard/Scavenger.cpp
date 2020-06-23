@@ -748,6 +748,9 @@ MM_Scavenger::mergeThreadGCStats(MM_EnvironmentBase *env)
 	/* Protect the merge with the mutex (this is done by multiple threads in the parallel collector) */
 	omrthread_monitor_enter(_extensions->gcStatsMutex);
 
+	_extensions->avereageTimeToCollect += env->timeToStartCollection;
+	env->timeToStartCollection = 0;
+
 	MM_ScavengerStats *scavStats = &env->_scavengerStats;
 
 	mergeGCStatsBase(env, &_extensions->incrementScavengerStats, scavStats);
@@ -2349,6 +2352,12 @@ MM_Scavenger::completeScan(MM_EnvironmentStandard *env)
 void
 MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 {
+	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+	uint64_t timeToStart = (omrtime_hires_clock() - _extensions->notifyStartTime);
+	//omrtty_printf("\t [%i] workThreadGarbageCollect: %llu \n", env->getSlaveID(), timeToStart);
+
+	env->timeToStartCollection = timeToStart;
+
 	Assert_MM_false(IS_CONCURRENT_ENABLED);
 
 	/* GC init (set up per-invocation values) */
@@ -4039,6 +4048,10 @@ MM_Scavenger::masterThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_Allocat
 		_extensions->scavengerStats._endTime = omrtime_hires_clock();
 
 		if(scavengeCompletedSuccessfully(env)) {
+
+			omrtty_printf(" -> Average Time to Start Collection: %llu ------\n", _extensions->avereageTimeToCollect/_dispatcher->activeThreadCount());
+			_extensions->avereageTimeToCollect = 0;
+
 			/* Merge sublists in the remembered set (if necessary) */
 			_extensions->rememberedSet.compact(env);
 
