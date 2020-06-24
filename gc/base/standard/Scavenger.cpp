@@ -2353,7 +2353,7 @@ void
 MM_Scavenger::workThreadGarbageCollect(MM_EnvironmentStandard *env)
 {
 	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
-	uint64_t timeToStart = (omrtime_hires_clock() - _extensions->notifyStartTime);
+	uint64_t timeToStart = omrtime_hires_delta(_extensions->notifyStartTime, omrtime_hires_clock(), OMRPORT_TIME_DELTA_IN_MICROSECONDS);
 	//omrtty_printf("\t [%i] workThreadGarbageCollect: %llu \n", env->getSlaveID(), timeToStart);
 
 	env->timeToStartCollection = timeToStart;

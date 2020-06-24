@@ -409,8 +409,7 @@ MM_ParallelDispatcher::wakeUpThreads(uintptr_t count)
 	} else {
 		omrthread_monitor_notify_all(_slaveThreadMutex);
 	}
-	uint64_t totalTime = (omrtime_hires_clock() - _extensions->notifyStartTime);
-	omrtty_printf(" -> Time to Notify: %llu", totalTime);
+	omrtty_printf(" -> Time to Notify: %llu", omrtime_hires_delta(_extensions->notifyStartTime, omrtime_hires_clock(), OMRPORT_TIME_DELTA_IN_MICROSECONDS));
 }
 
 /**
