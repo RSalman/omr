@@ -162,6 +162,7 @@ MM_ParallelDispatcher::slaveEntryPoint(MM_EnvironmentBase *env)
 			omrthread_monitor_wait(_slaveThreadMutex);
 				if (_slaveThreadsReservedForGC && _threadsToReserve > 0) {
 					Assert_MM_true(slave_status_dying != _statusTable[slaveID]);
+					Assert_MM_true(!_inShutdown);
 					_threadsToReserve--;
 					_statusTable[slaveID] = slave_status_reserved ;
 					_taskTable[slaveID] = _task;
@@ -491,7 +492,7 @@ MM_ParallelDispatcher::prepareThreadsForTask(MM_EnvironmentBase *env, MM_Task *t
 	 * attempt to kill the slave threads until after this task is completed
 	 */
 	_slaveThreadsReservedForGC = true; 
-
+	Assert_MM_true(!_inShutdown);
 	Assert_MM_true(_task == NULL);
 	_task = task;
 
