@@ -500,6 +500,8 @@ public:
 	bool enableSplitHeap; /**< true if we are using gencon with -Xgc:splitheap (we will fail to boostrap if we can't allocate both ranges) */
 	double aliasInhibitingThresholdPercentage; /**< percentage of threads that can be blocked before copy cache aliasing is inhibited (set through aliasInhibitingThresholdPercentage=) */
 
+	uintptr_t syntheticCount;
+
 	enum HeapInitializationSplitHeapSection {
 		HEAP_INITIALIZATION_SPLIT_HEAP_UNKNOWN = 0,
 		HEAP_INITIALIZATION_SPLIT_HEAP_TENURE,
@@ -1567,6 +1569,7 @@ public:
 		, dnssMinimumContraction(0.0)
 		, enableSplitHeap(false)
 		, aliasInhibitingThresholdPercentage(0.20)
+		, syntheticCount(1)
 		, splitHeapSection(HEAP_INITIALIZATION_SPLIT_HEAP_UNKNOWN)
 #endif /* OMR_GC_MODRON_SCAVENGER */
 		, globalMaximumContraction(0.05) /* by default, contract must be at most 5% of the committed heap */
