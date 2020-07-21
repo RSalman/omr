@@ -159,13 +159,19 @@ MM_ParallelDispatcher::slaveEntryPoint(MM_EnvironmentBase *env)
 	while(slave_status_dying != _statusTable[slaveID]) {
 		/* Wait for a task to be dispatched to the slave thread */
 		while(slave_status_waiting == _statusTable[slaveID]) {
-			omrthread_monitor_wait(_slaveThreadMutex);
 			if (_slaveThreadsReservedForGC && (_threadsToReserve > 0)) {
-				Assert_MM_true(slave_status_dying != _statusTable[slaveID]);
 				_threadsToReserve -= 1;
 				_statusTable[slaveID] = slave_status_reserved;
 				_taskTable[slaveID] = _task;
+			} else {
+				omrthread_monitor_wait(_slaveThreadMutex);
 			}
+		}
+
+		/* Ensure that thread didn't miss reserve path - make sure thread doesn't exit waiting loop without being reserved
+		 * when slaveThreadsReservedForGC (we should never have non-waiting status upon wake up with _slaveThreadsReservedForGC) */
+		if (_slaveThreadsReservedForGC) {
+			Assert_MM_true((slave_status_reserved == _statusTable[slaveID]) && (!_inShutdown));
 		}
 
 		if(slave_status_reserved == _statusTable[slaveID]) {
