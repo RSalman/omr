@@ -484,7 +484,7 @@ MM_Collector::garbageCollect(MM_EnvironmentBase* env, MM_MemorySubSpace* calling
 	Assert_MM_mustHaveExclusiveVMAccess(env->getOmrVMThread());
 
 	Assert_MM_true(NULL == env->_cycleState);
-	preCollect(env, callingSubSpace, allocateDescription, gcCode);
+	preCollect(env, callingSubSpace, allocateDescription, gcCode); //internalprecollect
 	Assert_MM_true(NULL != env->_cycleState);
 
 	/* ensure that we aren't trying to collect while in a NoGC allocation */

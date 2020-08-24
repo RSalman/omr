@@ -805,7 +805,7 @@ MM_ConcurrentGC::determineInitWork(MM_EnvironmentBase *env)
 
 			/* If the segment is for a concurrently collectable subspace we will
 			 * have some cards to clear too */
-			if (subspace->isConcurrentCollectable()) {
+			if (subspace->isConcurrentCollectable()) { // <TAG> not of SATB
 				_numInitRanges += 2; /* We will have some cards to clean as well */
 			} else {
 				_numInitRanges += 1;
@@ -1093,7 +1093,7 @@ MM_ConcurrentGC::conHelperEntryPoint(OMR_VMThread *omrThread, uintptr_t workerID
 
 		spinLimiter.reset();
 
-		/* clean cards */
+		/* clean cards */ // SATB no card cleaning!!!!
 		while ((CONCURRENT_HELPER_MARK == request)
 				&& (CONCURRENT_CLEAN_TRACE == _stats.getExecutionMode())
 				&& _cardTable->isCardCleaningStarted()
@@ -2041,7 +2041,7 @@ MM_ConcurrentGC::payAllocationTax(MM_EnvironmentBase *env, MM_MemorySubSpace *su
 	}
 
 	/* Concurrent marking is active */
-	concurrentMark(env, subspace, allocDescription);
+	concurrentMark(env, subspace, allocDescription); // Mutator doing marking if Concurrent mark ON i.e Current Kickoff happend
 	/* Thread roots must have been flushed by this point */
 	Assert_MM_true(!_concurrentDelegate.flushThreadRoots(env));
 }
@@ -2089,7 +2089,7 @@ MM_ConcurrentGC::concurrentMark(MM_EnvironmentBase *env, MM_MemorySubSpace *subs
 		 * to collect, get out quick so as not to hold things up
 		 */
 		if(env->isExclusiveAccessRequestWaiting() ) {
-			flushLocalBuffers(env);
+			flushLocalBuffers(env); //? Do we need to flush anything related to SATB?
 			break;
 		}
 
@@ -2222,9 +2222,10 @@ MM_ConcurrentGC::signalThreadsToActivateWriteBarrier(MM_EnvironmentBase *env)
 			_concurrentCycleState = MM_CycleState();
 			_concurrentCycleState._type = _cycleType;
 			env->_cycleState = &_concurrentCycleState;
-			reportGCCycleStart(env);
+			reportGCCycleStart(env); //cycle-start.. global
 			env->_cycleState = previousCycleState;
 
+			//<TAG> Active Write Barrier & Thread ALLOC COLOR
 			_concurrentDelegate.signalThreadsToActivateWriteBarrier(env);
 			_stats.switchExecutionMode(CONCURRENT_INIT_COMPLETE, CONCURRENT_ROOT_TRACING);
 			/* Cancel any outstanding call backs on other threads as this thread has done the necessary work */
@@ -2303,8 +2304,8 @@ MM_ConcurrentGC::timeToKickoffConcurrent(MM_EnvironmentBase *env, MM_AllocateDes
 		completeConcurrentSweepForKickoff(env);
 #endif /* OMR_GC_CONCURRENT_SWEEP */
 
-		if(_stats.switchExecutionMode(CONCURRENT_OFF, CONCURRENT_INIT_RUNNING)) {
-#if defined(OMR_GC_REALTIME)
+		if(_stats.switchExecutionMode(CONCURRENT_OFF, CONCURRENT_INIT_RUNNING)) { //Concurrent is being turned ON HERE
+#if defined(OMR_GC_REALTIME) /* <TAG> MOVE and refactor into method*/
 			if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
 				_extensions->sATBBarrierRememberedSet->restoreGlobalFragmentIndex(env);
 			}
@@ -2317,7 +2318,7 @@ MM_ConcurrentGC::timeToKickoffConcurrent(MM_EnvironmentBase *env, MM_AllocateDes
 #if defined(OMR_GC_MODRON_SCAVENGER)
 			_extensions->setConcurrentGlobalGCInProgress(true);
 #endif
-			reportConcurrentKickoff(env);
+			reportConcurrentKickoff(env); //<concurrent-kickoff..>
 		}
 		return true;
 	} else {
@@ -2404,6 +2405,7 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 	if (!allInitRangesProcessed()){ /* We just act as an general helper */
 		_initializers += 1;
 		if (!_initSetupDone ) {
+			/* <TAG> Any RESET specific to SATB required? */
 			_markingScheme->getWorkPackets()->reset(env);
 			_markingScheme->workerSetupForGC(env);
 			if(NULL != _cardTable) {
@@ -2435,16 +2437,17 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 			break;
 		}
 
+		/* <TAG> Does Metrome init ranges? I couldn't find it */
 		if(getInitRange(env, &from, &to, &type, &concurrentCollectable)) {
 			switch(type) {
 			case MARK_BITS:
-				if (concurrentCollectable) {
+				if (concurrentCollectable) { //In what case not concurrent collecatble?
 					initDone += _markingScheme->setMarkBitsInRange(env,from,to,true);
 				} else {
 					initDone += _markingScheme->setMarkBitsInRange(env,from,to,false);
 				}
 				break;
-			case CARD_TABLE:
+			case CARD_TABLE://<TAG> PUT ASSERT WE ARE NEVER HERE
 				if(NULL != _cardTable) {
 					initDone += ((MM_ConcurrentCardTable *)_cardTable)->clearCardsInRange(env,from,to);
 				}
@@ -2544,6 +2547,7 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 		_markingScheme->getWorkPackets()->reuseDeferredPackets(env);
 	}
 
+	/* <TAG> This needs to be gaurded */
 	/* Switch state if card cleaning stage 1 threshold reached */
 	if( (CONCURRENT_TRACE_ONLY == _stats.getExecutionMode()) && (remainingFree < _stats.getCardCleaningThreshold())) {
 		kickoffCardCleaning(env, CARD_CLEANING_THRESHOLD_REACHED);
@@ -2601,6 +2605,8 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 		/* Scan objects until there are no more, the trace size has been
 		 * achieved, or gc is waiting
 		 */
+		
+		<TAG> actually marking done here?
 		uintptr_t bytesTraced = localMark(env,(sizeToTrace - sizeTraced));
 		if (bytesTraced > 0 ) {
 			/* Update global count of amount  traced */
@@ -2611,6 +2617,8 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 
 		/* If GC is not waiting and we did not have enough to trace */
 		if (!env->isExclusiveAccessRequestWaiting() && sizeTraced < sizeToTrace) {
+			
+			<TAG> THIS SHOULD BE GAURDED
 			/* Check to see if we need to start card cleaning early */
 			if (CONCURRENT_TRACE_ONLY == _stats.getExecutionMode()) {
 				/* We have run out of tracing work. If all tracing is complete or
@@ -2625,6 +2633,7 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 				}
 			}
 
+			<TAG> THIS SHOULD BE GAURDED
 			if (CONCURRENT_CLEAN_TRACE == _stats.getExecutionMode()) {
 				if(!((MM_ConcurrentCardTable *)_cardTable)->isCardCleaningComplete()) {
 					/* Clean some cards. Returns when enough cards traced, no more cards
@@ -2690,6 +2699,8 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 	} /* of while sizeTraced < sizeToTrace */
 
 	if (!isGcOccurred) {
+		
+		<TAG> switching to exhausted should be reachable for SATB
 		/* If no more work left (and concurrent scanning is complete or disabled) then switch to exhausted now */
 		if ((NULL != _cardTable) && ((MM_ConcurrentCardTable *)_cardTable)->isCardCleaningComplete() &&
 			_markingScheme->getWorkPackets()->tracingExhausted() &&
