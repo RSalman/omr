@@ -358,9 +358,9 @@ MM_MarkingScheme::markLiveObjectsInit(MM_EnvironmentBase *env, bool initMarkMap)
  *  @param[in] shouldScan instruct should scanning also be active while roots are marked   
  */
 void
-MM_MarkingScheme::markLiveObjectsRoots(MM_EnvironmentBase *env)
+MM_MarkingScheme::markLiveObjectsRoots(MM_EnvironmentBase *env, bool concurrentSATB)
 {
-	_delegate.scanRoots(env);
+	_delegate.scanRoots(env, concurrentSATB);
 }
 
 void
@@ -382,9 +382,9 @@ MM_MarkingScheme::completeMarking(MM_EnvironmentBase *env)
  *  @param[in] env - passed Environment 
  */
 void
-MM_MarkingScheme::markLiveObjectsComplete(MM_EnvironmentBase *env)
+MM_MarkingScheme::markLiveObjectsComplete(MM_EnvironmentBase *env, bool concurrentSATB)
 {
-	_delegate.workerCompleteGC(env);
+	_delegate.workerCompleteGC(env, concurrentSATB);
 }
 
 MM_WorkPackets *

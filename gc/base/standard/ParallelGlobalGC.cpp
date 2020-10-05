@@ -418,12 +418,7 @@ MM_ParallelGlobalGC::cleanupAfterGC(MM_EnvironmentBase *env, MM_AllocateDescript
 }
 
 void
-MM_ParallelGlobalGC::mainThreadGarbageCollect(MM_EnvironmentBase *env, MM_AllocateDescription *allocDescription, bool initMarkMap, bool rebuildMarkBits)
-{
-	if (_extensions->trackMutatorThreadCategory) {
-		/* This thread is doing GC work, account for the time spent into the GC bucket */
-		omrthread_set_category(env->getOmrVMThread()->_os_thread, J9THREAD_CATEGORY_SYSTEM_GC_THREAD, J9THREAD_TYPE_SET_GC);
-	}
+MM_ParallelGlobalGC::markSetup(MM_EnvironmentBase *env) {
 
 	/* Perform any main-specific setup */
 	/* Tell the GAM to flush its contexts */
@@ -453,13 +448,31 @@ MM_ParallelGlobalGC::mainThreadGarbageCollect(MM_EnvironmentBase *env, MM_Alloca
 
 	_delegate.mainThreadGarbageCollectStarted(env);
 
+}
+
+
+void
+MM_ParallelGlobalGC::mainThreadGarbageCollect(MM_EnvironmentBase *env, MM_AllocateDescription *allocDescription, bool initMarkMap, bool rebuildMarkBits)
+{
+	if (_extensions->trackMutatorThreadCategory) {
+		/* This thread is doing GC work, account for the time spent into the GC bucket */
+		omrthread_set_category(env->getOmrVMThread()->_os_thread, J9THREAD_CATEGORY_SYSTEM_GC_THREAD, J9THREAD_TYPE_SET_GC);
+	}
+
 	/* ----- end of setupForCollect ------*/
 	
 	/* Run a garbage collect */
 
-	/* Mark */	
-	markAll(env, initMarkMap);
-
+	/* Mark */
+	if(_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled() && !initMarkMap && !rebuildMarkBits) {
+		Assert_MM_true(_markingScheme->getWorkPackets()->isAllPacketsEmpty());
+		postMark(env);
+		_markingScheme->mainCleanupAfterGC(env);
+	} else {
+		markSetup(env);
+		markAll(env, initMarkMap);
+	}
+	
 	_delegate.postMarkProcessing(env);
 	
 	sweep(env, allocDescription, rebuildMarkBits);
@@ -952,7 +965,7 @@ MM_ParallelGlobalGC::markAll(MM_EnvironmentBase *env, bool initMarkMap)
 	}
 
 	/* run the mark */
-	MM_ParallelMarkTask markTask(env, _dispatcher, _markingScheme, initMarkMap, env->_cycleState);
+	MM_ParallelMarkTask markTask(env, _dispatcher, _markingScheme, initMarkMap, env->_cycleState, false);
 	_dispatcher->run(env, &markTask);
 	
 	Assert_MM_true(_markingScheme->getWorkPackets()->isAllPacketsEmpty());

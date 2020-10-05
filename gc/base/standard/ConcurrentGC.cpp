@@ -71,6 +71,7 @@
 #include "MemorySubSpaceSemiSpace.hpp"
 #include "ObjectModel.hpp"
 #include "ParallelDispatcher.hpp"
+#include "ParallelMarkTask.hpp"
 #include "SpinLimiter.hpp"
 #include "SublistIterator.hpp"
 #include "SublistPuddle.hpp"
@@ -107,6 +108,10 @@ J9ConcurrentWriteBarrierStore (OMR_VMThread *vmThread, omrobjectptr_t destinatio
 	MM_EnvironmentBase *env = MM_EnvironmentBase::getEnvironment(vmThread);
 	MM_GCExtensionsBase *extensions = env->getExtensions();
 
+#if defined(OMR_GC_SATB_M1_STRICT)
+	extensions->unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
+
 	extensions->cardTable->dirtyCard(env, (omrobjectptr_t)destinationObject);
 }
 
@@ -122,6 +127,10 @@ J9ConcurrentWriteBarrierBatchStore (OMR_VMThread *vmThread, omrobjectptr_t desti
 {
 	MM_EnvironmentBase *env = MM_EnvironmentBase::getEnvironment(vmThread);
 	MM_GCExtensionsBase *extensions = env->getExtensions();
+
+#if defined(OMR_GC_SATB_M1_STRICT)
+	extensions->unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
 
 	extensions->cardTable->dirtyCard(env, (omrobjectptr_t)destinationObject);
 }
@@ -236,6 +245,13 @@ void
 MM_ConcurrentGC::reportConcurrentHalted(MM_EnvironmentBase *env)
 {
 	MM_ConcurrentCardTable *cardTable = (MM_ConcurrentCardTable *)_cardTable;
+
+	bool satb = _extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled();
+
+#if defined(OMR_GC_SATB_M1_STRICT)
+	if (satb) { Assert_MM_true( cardTable == NULL); }
+#endif /* OMR_GC_SATB_M1_STRICT */
+
 	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
 
 	Trc_MM_ConcurrentHalted(env->getLanguageVMThread(),
@@ -244,14 +260,14 @@ MM_ConcurrentGC::reportConcurrentHalted(MM_EnvironmentBase *env)
 		_stats.getTotalTraced(),
 		_stats.getMutatorsTraced(),
 		_stats.getConHelperTraced(),
-		cardTable->getCardTableStats()->getConcurrentCleanedCards(),
+		 satb ? 123456 : cardTable->getCardTableStats()->getConcurrentCleanedCards(),
 		_stats.getCardCleaningThreshold(),
 		(_stats.getConcurrentWorkStackOverflowOcurred() ? "true" : "false"),
 		_stats.getConcurrentWorkStackOverflowCount()
 	);
 
 	Trc_MM_ConcurrentHaltedState(env->getLanguageVMThread(),
-		cardTable->isCardCleaningComplete() ? "complete" : "incomplete",
+		satb ? "SATB" : (cardTable->isCardCleaningComplete() ? "complete" : "incomplete"),
 		_concurrentDelegate.isConcurrentScanningComplete(env) ? "complete" : "incomplete",
 		_markingScheme->getWorkPackets()->tracingExhausted() ? "complete" : "incomplete"
 	);
@@ -266,11 +282,11 @@ MM_ConcurrentGC::reportConcurrentHalted(MM_EnvironmentBase *env)
 		_stats.getTotalTraced(),
 		_stats.getMutatorsTraced(),
 		_stats.getConHelperTraced(),
-		cardTable->getCardTableStats()->getConcurrentCleanedCards(),
+		satb ? 123456 : cardTable->getCardTableStats()->getConcurrentCleanedCards(),
 		_stats.getCardCleaningThreshold(),
 		_stats.getConcurrentWorkStackOverflowOcurred(),
 		_stats.getConcurrentWorkStackOverflowCount(),
-		(uintptr_t)cardTable->isCardCleaningComplete(),
+		satb ? 1 : (uintptr_t)cardTable->isCardCleaningComplete(),
 		_concurrentDelegate.reportConcurrentScanningMode(env),
 		(uintptr_t)_markingScheme->getWorkPackets()->tracingExhausted()
 	);
@@ -279,6 +295,10 @@ MM_ConcurrentGC::reportConcurrentHalted(MM_EnvironmentBase *env)
 void
 MM_ConcurrentGC::reportConcurrentFinalCardCleaningStart(MM_EnvironmentBase *env)
 {
+#if defined(OMR_GC_SATB_M1_STRICT)
+	unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
+
 	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
 
 	Trc_MM_ConcurrentCollectionCardCleaningStart(env->getLanguageVMThread(),
@@ -296,6 +316,10 @@ MM_ConcurrentGC::reportConcurrentFinalCardCleaningStart(MM_EnvironmentBase *env)
 void
 MM_ConcurrentGC::reportConcurrentFinalCardCleaningEnd(MM_EnvironmentBase *env, uint64_t duration)
 {
+#if defined(OMR_GC_SATB_M1_STRICT)
+	unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
+
 	MM_ConcurrentCardTable *cardTable = (MM_ConcurrentCardTable *)_cardTable;
 	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
 
@@ -326,6 +350,12 @@ void
 MM_ConcurrentGC::reportConcurrentCollectionStart(MM_EnvironmentBase *env)
 {
 	MM_ConcurrentCardTable *cardTable = (MM_ConcurrentCardTable *)_cardTable;
+	bool satb = _extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled();
+
+#if defined(OMR_GC_SATB_M1_STRICT)
+	if (satb) { Assert_MM_true( cardTable == NULL); }
+#endif /* OMR_GC_SATB_M1_STRICT */
+
 	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
 
 	Trc_MM_ConcurrentCollectionStart(env->getLanguageVMThread(),
@@ -339,7 +369,7 @@ MM_ConcurrentGC::reportConcurrentCollectionStart(MM_EnvironmentBase *env)
 		_stats.getTotalTraced(),
 		_stats.getMutatorsTraced(),
 		_stats.getConHelperTraced(),
-		cardTable->getCardTableStats()->getConcurrentCleanedCards(),
+		satb ? 1010101 : cardTable->getCardTableStats()->getConcurrentCleanedCards(),
 		_stats.getCardCleaningThreshold(),
 		(_stats.getConcurrentWorkStackOverflowOcurred() ? "true" : "false"),
 		_stats.getConcurrentWorkStackOverflowCount()
@@ -370,7 +400,7 @@ MM_ConcurrentGC::reportConcurrentCollectionStart(MM_EnvironmentBase *env)
 			_stats.getTotalTraced(),
 			_stats.getMutatorsTraced(),
 			_stats.getConHelperTraced(),
-			cardTable->getCardTableStats()->getConcurrentCleanedCards(),
+			satb ? 1010101 : cardTable->getCardTableStats()->getConcurrentCleanedCards(),
 			_stats.getCardCleaningThreshold(),
 			_stats.getConcurrentWorkStackOverflowOcurred(),
 			_stats.getConcurrentWorkStackOverflowCount(),
@@ -805,7 +835,7 @@ MM_ConcurrentGC::determineInitWork(MM_EnvironmentBase *env)
 
 			/* If the segment is for a concurrently collectable subspace we will
 			 * have some cards to clear too */
-			if (subspace->isConcurrentCollectable()) {
+			if (subspace->isConcurrentCollectable() && !_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
 				_numInitRanges += 2; /* We will have some cards to clean as well */
 			} else {
 				_numInitRanges += 1;
@@ -1039,6 +1069,11 @@ MM_ConcurrentGC::getConHelperRequest(MM_EnvironmentBase *env)
 void
 MM_ConcurrentGC::conHelperEntryPoint(OMR_VMThread *omrThread, uintptr_t workerID)
 {
+
+#if defined(OMR_GC_SATB_M1_STRICT)
+	unreachableSATB(); /*Background helper threads not suppourted with SATB */
+#endif /* OMR_GC_SATB_M1_STRICT */
+
 	MM_EnvironmentBase *env = MM_EnvironmentBase::getEnvironment(omrThread);
 	ConHelperRequest request = CONCURRENT_HELPER_WAIT;
 	uintptr_t sizeTraced = 0;
@@ -1317,7 +1352,7 @@ MM_ConcurrentGC::tuneToHeap(MM_EnvironmentBase *env)
 		/* Re-tune based on actual amount traced if we completed tracing on last cycle */
 		if ((NULL == env->_cycleState) || env->_cycleState->_gcCode.isExplicitGC() || !_stwCollectionInProgress) {
 			/* Nothing to do - we can't update statistics on a system GC or when no cycle is running */
-		} else if (CONCURRENT_EXHAUSTED <= _stats.getExecutionModeAtGC()) {
+		} else if (CONCURRENT_EXHAUSTED <= _stats.getExecutionModeAtGC() && !_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
 
 			uintptr_t totalTraced = _stats.getTraceSizeCount() + _stats.getConHelperTraceSizeCount();
 			uintptr_t totalCleaned = _stats.getCardCleanCount() + _stats.getConHelperCardCleanCount();
@@ -1341,6 +1376,9 @@ MM_ConcurrentGC::tuneToHeap(MM_EnvironmentBase *env)
 
 			}
 		} else if (_stats.getExecutionModeAtGC() == CONCURRENT_CLEAN_TRACE) {
+#if defined(OMR_GC_SATB_M1_STRICT)
+			unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
 			/* Assume amount to be traced on next cycle will what we traced this time PLUS
 			 * the tracing we did to complete processing of any work packets that remained at
 			 * the start of the collection PLUS tracing done during final card cleaning.
@@ -1453,8 +1491,27 @@ MM_ConcurrentGC::tuneToHeap(MM_EnvironmentBase *env)
 	float cardCleaningProportion = (float)cardCleaningThreshold / (float)kickoffThreshold;
 
 	kickoffThresholdPlusBuffer = (uintptr_t)((float)kickoffThreshold + boost + ((float)_extensions->concurrentSlack * kickoffProportion));
-	_stats.setKickoffThreshold(kickoffThresholdPlusBuffer);
-	_stats.setCardCleaningThreshold((uintptr_t)((float)cardCleaningThreshold + boost + ((float)_extensions->concurrentSlack * cardCleaningProportion)));
+
+	if(_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+		/* SATB Static Threshold for now */
+		if(_stats.getKickoffThreshold() == 0) {
+			_stats.setKickoffThreshold(kickoffThresholdPlusBuffer);
+		}
+
+		if (_stats.getCardCleaningThreshold() == 0) {
+			_stats.setCardCleaningThreshold((uintptr_t)((float)cardCleaningThreshold + boost + ((float)_extensions->concurrentSlack * cardCleaningProportion)));
+		}
+	
+		if (_extensions->debugSATBlevel >= 2) {
+			OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+			omrtty_printf("Kickoff Threshold: %zu \t  Cardcleaning Threshold: %zu \n", _stats.getKickoffThreshold(), _stats.getCardCleaningThreshold());
+		}
+
+	} else {
+		_stats.setKickoffThreshold(kickoffThresholdPlusBuffer);
+		_stats.setCardCleaningThreshold((uintptr_t)((float)cardCleaningThreshold + boost + ((float)_extensions->concurrentSlack * cardCleaningProportion)));
+	}
+
 	_kickoffThresholdBuffer = MM_Math::saturatingSubtract(kickoffThresholdPlusBuffer, kickoffThreshold);
 
 	if (_extensions->debugConcurrentMark) {
@@ -1499,6 +1556,10 @@ MM_ConcurrentGC::tuneToHeap(MM_EnvironmentBase *env)
 void
 MM_ConcurrentGC::adjustTraceTarget()
 {
+#if defined(OMR_GC_SATB_M1_STRICT)
+		unreachableSATB(); /* We shouldn't end up here with SATB, this method is only called during heap resize */
+#endif /* OMR_GC_SATB_M1_STRICT */
+
 	uintptr_t newTraceTarget, totalBytesToTrace;
 	MM_Heap *heap = (MM_Heap *)_extensions->heap;
 	uintptr_t heapSize = heap->getActiveMemorySize(MEMORY_TYPE_OLD);
@@ -1829,6 +1890,10 @@ MM_ConcurrentGC::potentialFreeSpace(MM_EnvironmentBase *env, MM_AllocateDescript
 			return (uintptr_t)-1;
 		}
 		
+#if defined(OMR_GC_SATB_M1_STRICT)
+		unreachableSATB(); /* GENCON not suppourted with SATB */
+#endif /* OMR_GC_SATB_M1_STRICT */
+
 		nurseryPromotion = scavengerStats->_avgTenureBytes == 0 ? 1: (uintptr_t)(scavengerStats->_avgTenureBytes + (env->getExtensions()->tenureBytesDeviationBoost * scavengerStats->_avgTenureBytesDeviation));
 
 #if defined(OMR_GC_LARGE_OBJECT_AREA)
@@ -1948,6 +2013,10 @@ MM_ConcurrentGC::periodicalTuning(MM_EnvironmentBase *env, uintptr_t freeSize)
 
 		/* Update concurrent helper trace rate if we have any */
 		if (_conHelpersStarted > 0) {
+#if defined(OMR_GC_SATB_M1_STRICT)
+			unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
+
 			uintptr_t conTraced = _stats.getConHelperTraceSizeCount() +  _stats.getConHelperCardCleanCount();
 			newConHelperRate =  (float)(conTraced - _lastConHelperTraceSizeCount) / (float) (freeSpaceUsed);
 			_lastConHelperTraceSizeCount = conTraced;
@@ -1981,6 +2050,9 @@ MM_ConcurrentGC::periodicalTuning(MM_EnvironmentBase *env, uintptr_t freeSize)
 void
 MM_ConcurrentGC::kickoffCardCleaning(MM_EnvironmentBase *env, ConcurrentCardCleaningReason reason)
 {
+#if defined(OMR_GC_SATB_M1_STRICT)
+	unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
 	/* Switch to CONCURRENT_CLEAN_TRACE...if we fail someone beat us to it */
 	if (_stats.switchExecutionMode(CONCURRENT_TRACE_ONLY, CONCURRENT_CLEAN_TRACE)) {
 		_stats.setCardCleaningReason(reason);
@@ -2131,6 +2203,9 @@ MM_ConcurrentGC::concurrentMark(MM_EnvironmentBase *env, MM_MemorySubSpace *subs
 					_callback->requestCallback(env);
 					/* ..and return so that thread can get to a safe point */
 					taxPaid = true;
+#if defined(OMR_GC_SATB_M1_STRICT)
+					unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
 				}
 			} else {
 				/* TODO: Once optimizeConcurrentWB enabled by default this code will be deleted */
@@ -2144,7 +2219,16 @@ MM_ConcurrentGC::concurrentMark(MM_EnvironmentBase *env, MM_MemorySubSpace *subs
 			 * triggered by next allocation.
 			 */
 			if(threadAtSafePoint) {
+				if (_extensions->debugSATBlevel >= 1) {
+					OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+					omrtty_printf(" [SATB] [concurrentMark] CONCURRENT_EXHAUSTED -> FINAL \n");			
+				}
 				concurrentFinalCollection(env,subspace);
+			} else {
+				if (_extensions->debugSATBlevel >= 1) {
+					OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+					omrtty_printf(" [SATB] [concurrentMark] CONCURRENT_EXHAUSTED -> FAIL FINAL (!threadAtSafePoint) \n");
+				}
 			}
 
 			/* Thats enough for this mutator */
@@ -2157,6 +2241,9 @@ MM_ConcurrentGC::concurrentMark(MM_EnvironmentBase *env, MM_MemorySubSpace *subs
 			break;
 
 		case CONCURRENT_ROOT_TRACING:
+#if defined(OMR_GC_SATB_M1_STRICT)
+			unreachableSATB(); /* CC ROOTS skipped for SATB*/
+#endif /* OMR_GC_SATB_M1_STRICT */
 			nextExecutionMode = _concurrentDelegate.getNextTracingMode(CONCURRENT_ROOT_TRACING);
 			Assert_GC_true_with_message(env, (CONCURRENT_ROOT_TRACING < nextExecutionMode) || (CONCURRENT_TRACE_ONLY == nextExecutionMode), "MM_ConcurrentMarkingDelegate::getNextTracingMode(CONCURRENT_ROOT_TRACING) = %zu\n", nextExecutionMode);
 			if(_stats.switchExecutionMode(CONCURRENT_ROOT_TRACING, nextExecutionMode)) {
@@ -2167,6 +2254,9 @@ MM_ConcurrentGC::concurrentMark(MM_EnvironmentBase *env, MM_MemorySubSpace *subs
 			break;
 
 		default:
+#if defined(OMR_GC_SATB_M1_STRICT)
+			unreachableSATB(); /* CC ROOTS skipped for SATB (default are lang root states) */
+#endif /* OMR_GC_SATB_M1_STRICT */
 			/* Client language defines 1 or more execution modes with values > CONCURRENT_ROOT_TRACING */
 			Assert_GC_true_with_message(env, (CONCURRENT_ROOT_TRACING < executionMode) && (CONCURRENT_TRACE_ONLY > executionMode), "MM_ConcurrentStats::_executionMode = %zu\n", executionMode);
 			nextExecutionMode = _concurrentDelegate.getNextTracingMode(executionMode);
@@ -2224,9 +2314,35 @@ MM_ConcurrentGC::signalThreadsToActivateWriteBarrier(MM_EnvironmentBase *env)
 			env->_cycleState = &_concurrentCycleState;
 			reportGCCycleStart(env);
 			env->_cycleState = previousCycleState;
+			uintptr_t newMode = CONCURRENT_ROOT_TRACING;
 
-			_concurrentDelegate.signalThreadsToActivateWriteBarrier(env);
-			_stats.switchExecutionMode(CONCURRENT_INIT_COMPLETE, CONCURRENT_ROOT_TRACING);
+#if defined(OMR_GC_REALTIME)
+			if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+				_extensions->sATBBarrierRememberedSet->restoreGlobalFragmentIndex(env); /*enable write barrier */
+
+				
+				if (_extensions->debugSATBlevel >= 1) {
+					OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+					omrtty_printf(" [signalThreadsToActivateWriteBarrier SATB] STW INITAL CONCURRENT_INIT_COMPLETE -> CONCURRENT_TRACE_ONLY \n");
+				}
+
+				markSetup(env);
+				_markingScheme->mainSetupForGC(env);
+				_concurrentDelegate.signalThreadsToActivateWriteBarrier(env);
+				/*Scan Threads in STW Parallel fashion */
+				MM_ParallelMarkTask rootTask(env, _dispatcher, _markingScheme, false, env->_cycleState, true);
+				_dispatcher->run(env, &rootTask);
+				_extensions->newThreadAllocationColor = GC_MARK;
+				newMode = CONCURRENT_TRACE_ONLY;
+				
+				Assert_MM_true(env->isThreadScanned());
+			}
+#endif /* defined(OMR_GC_REALTIME) */
+
+
+			//_concurrentDelegate.signalThreadsToActivateWriteBarrier(env); /* This should be moved out */
+
+			_stats.switchExecutionMode(CONCURRENT_INIT_COMPLETE, newMode);
 			/* Cancel any outstanding call backs on other threads as this thread has done the necessary work */
 			_callback->cancelCallback(env);
 
@@ -2296,20 +2412,21 @@ MM_ConcurrentGC::timeToKickoffConcurrent(MM_EnvironmentBase *env, MM_AllocateDes
 	if (0 == remainingFree) {
 		return false;
 	}
+	
+	/* For SATB testing purposes */
+	uintptr_t threshold = _stats.getKickoffThreshold();
+	
+	if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+		threshold = _stats.getKickoffThreshold() * 1.35;
+	}
 
-	if ((remainingFree < _stats.getKickoffThreshold()) || _forcedKickoff) {
+	if ((remainingFree < threshold) || _forcedKickoff) {
 #if defined(OMR_GC_CONCURRENT_SWEEP)
 		/* Finish off any sweep work that was still in progress */
 		completeConcurrentSweepForKickoff(env);
 #endif /* OMR_GC_CONCURRENT_SWEEP */
 
 		if(_stats.switchExecutionMode(CONCURRENT_OFF, CONCURRENT_INIT_RUNNING)) {
-#if defined(OMR_GC_REALTIME)
-			if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
-				_extensions->sATBBarrierRememberedSet->restoreGlobalFragmentIndex(env);
-			}
-#endif /* defined(OMR_GC_REALTIME) */
-
 			_stats.setRemainingFree(remainingFree);
 			/* Set kickoff reason if it is not set yet */
 			_stats.setKickoffReason(KICKOFF_THRESHOLD_REACHED);
@@ -2407,6 +2524,9 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 			_markingScheme->getWorkPackets()->reset(env);
 			_markingScheme->workerSetupForGC(env);
 			if(NULL != _cardTable) {
+#if defined(OMR_GC_SATB_M1_STRICT)
+				unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
 				((MM_ConcurrentCardTable *)_cardTable)->initializeCardCleaning(env);
 			}
 			_initSetupDone = true;
@@ -2441,10 +2561,16 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 				if (concurrentCollectable) {
 					initDone += _markingScheme->setMarkBitsInRange(env,from,to,true);
 				} else {
+#if defined(OMR_GC_SATB_M1_STRICT)
+					unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
 					initDone += _markingScheme->setMarkBitsInRange(env,from,to,false);
 				}
 				break;
 			case CARD_TABLE:
+#if defined(OMR_GC_SATB_M1_STRICT)
+					unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
 				if(NULL != _cardTable) {
 					initDone += ((MM_ConcurrentCardTable *)_cardTable)->clearCardsInRange(env,from,to);
 				}
@@ -2538,6 +2664,40 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 		remainingFree = targetPool->getApproximateFreeMemorySize();
 	}
 
+
+	if(_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+		Assert_MM_true(env->isThreadScanned());
+	}
+	
+	/* TEMP: Use Card Cleaning Threshold as SATB threshold to transition to STW  */
+	uintptr_t SATB_threshold = _stats.getCardCleaningThreshold();
+
+	/* Switch state if ...*/
+	if( _extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled() &&
+			(CONCURRENT_TRACE_ONLY == _stats.getExecutionMode()) &&
+			(remainingFree < SATB_threshold)) {
+
+			OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+			if (_extensions->debugSATBlevel >= 1) { 
+				omrtty_printf(" [SATB] [doConcurrentTrace] remainingFree < SATB_threshold \n"); 
+			}
+
+				if(_stats.switchExecutionMode(CONCURRENT_TRACE_ONLY, CONCURRENT_EXHAUSTED)) {
+					if (_extensions->debugSATBlevel >= 1) { 
+						omrtty_printf(" [SATB] [doConcurrentTrace] remainingFree < SATB_threshold -> CONCURRENT_EXHAUSTED (setAllocateAtSafePointOnly) \n");
+					}
+					/* Tell all MSS to use slow path allocate and so get to a safe
+					* point before paying allocation tax.
+					*/
+					subspace->setAllocateAtSafePointOnly(env, true);
+					return 0;
+				} else {
+					if (_extensions->debugSATBlevel >= 1) { 
+						omrtty_printf(" [SATB] [doConcurrentTrace] remainingFree < SATB_threshold -> FAIL ATTEMPT SWITCH \n");
+					}
+				}
+		}
+
 	if (periodicalTuningNeeded(env,remainingFree)) {
 		periodicalTuning(env, remainingFree);
 		/* Move any remaining deferred work packets to regular lists */
@@ -2545,8 +2705,8 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 	}
 
 	/* Switch state if card cleaning stage 1 threshold reached */
-	if( (CONCURRENT_TRACE_ONLY == _stats.getExecutionMode()) && (remainingFree < _stats.getCardCleaningThreshold())) {
-		kickoffCardCleaning(env, CARD_CLEANING_THRESHOLD_REACHED);
+	if( !_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled() && (CONCURRENT_TRACE_ONLY == _stats.getExecutionMode()) && (remainingFree < _stats.getCardCleaningThreshold())) {
+			kickoffCardCleaning(env, CARD_CLEANING_THRESHOLD_REACHED);
 	}
 
 	uintptr_t bytesTraced = 0;
@@ -2565,6 +2725,9 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 	 * a TLH allocation as we are not at a safe point.
 	 */
 	if(!env->isThreadScanned() && threadAtSafePoint) {
+#if defined(OMR_GC_SATB_M1_STRICT)
+		unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
 		/* If call back is late, i.e after the collect,  then ignore it */
 		/* CMVC 119942 : add a top range of CONCURRENT_EXHAUSTED so that we don't scan threads
 		 * at the last second and report them as being scanned when we haven't actually had a
@@ -2593,6 +2756,10 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 			(CONCURRENT_CLEAN_TRACE >= _stats.getExecutionMode())
 	) {
 
+		if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+			Assert_MM_true(CONCURRENT_CLEAN_TRACE != _stats.getExecutionMode());
+		}
+
 		/* CMVC 131721 - record the amount traced up until now. If any iteration of this loop fails
 		 * to increase the sizeTraced, break out of the loop and return to mutating
 		 */
@@ -2617,7 +2784,10 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 				 * we have passed the peak of tracing activity then we may as well
 				 * start card cleaning now.
 				 */
-				if ((_markingScheme->getWorkPackets()->tracingExhausted() || tracingRateDropped(env)) && _stats.isRootTracingComplete()) {
+
+				if(_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+					break;
+				} else if ((_markingScheme->getWorkPackets()->tracingExhausted() || tracingRateDropped(env)) && _stats.isRootTracingComplete()) {
 					kickoffCardCleaning(env, TRACING_COMPLETED);
 				} else {
 					/* Nothing to do and not time to start card cleaning yet */
@@ -2626,6 +2796,9 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 			}
 
 			if (CONCURRENT_CLEAN_TRACE == _stats.getExecutionMode()) {
+#if defined(OMR_GC_SATB_M1_STRICT)
+				unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
 				if(!((MM_ConcurrentCardTable *)_cardTable)->isCardCleaningComplete()) {
 					/* Clean some cards. Returns when enough cards traced, no more cards
 					 * to trace, _gcWaiting true or a GC occurred preparing cards.
@@ -2695,10 +2868,26 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 			_markingScheme->getWorkPackets()->tracingExhausted() &&
 			_concurrentDelegate.isConcurrentScanningComplete(env)) {
 
+#if defined(OMR_GC_SATB_M1_STRICT)
+				unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
+
 			if(_stats.switchExecutionMode(CONCURRENT_CLEAN_TRACE, CONCURRENT_EXHAUSTED)) {
 				/* Tell all MSS to use slow path allocate and so get to a safe
 				* point before paying allocation tax.
 				*/
+				subspace->setAllocateAtSafePointOnly(env, true);
+			}
+		} else if(_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled() && (((MM_WorkPacketsSATB *)_markingScheme)->effectiveTraceExhausted()) &&
+				_concurrentDelegate.isConcurrentScanningComplete(env)) {
+			if(_stats.switchExecutionMode(CONCURRENT_TRACE_ONLY, CONCURRENT_EXHAUSTED)) {
+				/* Tell all MSS to use slow path allocate and so get to a safe
+				* point before paying allocation tax.
+				*/
+				if (_extensions->debugSATBlevel >= 1) { 
+					OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+					omrtty_printf(" [SATB] [doConcurrentTrace] effectiveTraceExhausted -> CONCURRENT_EXHAUSTED (setAllocateAtSafePointOnly) \n"); 
+				}
 				subspace->setAllocateAtSafePointOnly(env, true);
 			}
 		}
@@ -2731,13 +2920,18 @@ MM_ConcurrentGC::concurrentFinalCollection(MM_EnvironmentBase *env, MM_MemorySub
 {
 	/* Switch to FINAL_COLLECTION; if we fail another thread beat us to it so just return */
 	if	(_stats.switchExecutionMode(CONCURRENT_EXHAUSTED, CONCURRENT_FINAL_COLLECTION)) {
-#if defined(OMR_GC_REALTIME)
-		if(_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
-			_extensions->sATBBarrierRememberedSet->preserveGlobalFragmentIndex(env);
+		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+		
+		if (_extensions->debugSATBlevel >= 1) { 
+			omrtty_printf(" [SATB] [concurrentFinalCollection] concurrentFinalCollection ATTEMPT \n"); 
 		}
-#endif /* defined(OMR_GC_REALTIME) */
+		
 		if(env->acquireExclusiveVMAccessForGC(this, true, true)) {
-			OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+		
+			if (_extensions->debugSATBlevel >= 1) { 
+				omrtty_printf(" [SATB] [concurrentFinalCollection] concurrentFinalCollection SUCCESS CONCURRENT_EXHAUSTED -> CONCURRENT_FINAL_COLLECTION \n"); 
+			}
+		
 			/* We got exclusive control first so do collection */
 			reportConcurrentCollectionStart(env);
 			uint64_t startTime = omrtime_hires_clock();
@@ -2968,6 +3162,19 @@ MM_ConcurrentGC::internalPreCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *
 #endif /* OMR_GC_IDLE_HEAP_MANAGER */
 	if (_extensions->isRememberedSetInOverflowState() || ((CONCURRENT_OFF < executionModeAtGC) && (CONCURRENT_TRACE_ONLY > executionModeAtGC))) {
 		CollectionAbortReason reason = (_extensions->isRememberedSetInOverflowState() ? ABORT_COLLECTION_REMEMBERSET_OVERFLOW : ABORT_COLLECTION_INSUFFICENT_PROGRESS);
+
+#if defined(OMR_GC_SATB_M1_STRICT)
+		if(_extensions->isRememberedSetInOverflowState()) {
+			unreachableSATB();
+		}
+#endif /* OMR_GC_SATB_M1_STRICT */
+
+		if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+			Assert_MM_true(_extensions->newThreadAllocationColor == GC_UNMARK);
+			Assert_MM_true(_extensions->sATBBarrierRememberedSet->isGlobalFragmentIndexPreserved(env));
+			Assert_MM_true(!env->isThreadScanned());
+		}
+
 		abortCollection(env, reason);
 		/* concurrent cycle was aborted so we need to kick off a new cycle and set up the cycle state */
 		MM_ParallelGlobalGC::internalPreCollect(env, subSpace, allocDescription, gcCode);
@@ -2981,10 +3188,20 @@ MM_ConcurrentGC::internalPreCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *
 		if (_stats.switchExecutionMode(executionModeAtGC, CONCURRENT_OFF)) {
 #if defined(OMR_GC_REALTIME)
 			if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
-				if (((MM_WorkPacketsSATB *)_markingScheme->getWorkPackets())->inUsePacketsAvailable(env)) {
-					((MM_WorkPacketsSATB *)_markingScheme->getWorkPackets())->moveInUseToNonEmpty(env);
-					_extensions->sATBBarrierRememberedSet->flushFragments(env);
-				}
+					if (((MM_WorkPacketsSATB *)_markingScheme->getWorkPackets())->inUsePacketsAvailable(env)) {
+						if (_extensions->debugSATBlevel >= 1) { 
+							omrtty_printf("[SATB] [internalPreCollect] Barrier inUseCount: %i \n", ((MM_WorkPacketsSATB *)_markingScheme->getWorkPackets())->count());
+						}
+						((MM_WorkPacketsSATB *)_markingScheme->getWorkPackets())->moveInUseToNonEmpty(env);
+						_extensions->sATBBarrierRememberedSet->flushFragments(env);
+					} else {
+						if (_extensions->debugSATBlevel >= 1) { 
+							omrtty_printf("[SATB] [internalPreCollect] Barrier inUseCount: EMPTY \n");
+						}
+					}
+
+				_extensions->sATBBarrierRememberedSet->preserveGlobalFragmentIndex(env);
+				_extensions->newThreadAllocationColor = GC_UNMARK;
 			}
 #endif /* defined(OMR_GC_REALTIME) */
 		}
@@ -2997,7 +3214,7 @@ MM_ConcurrentGC::internalPreCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *
 		 */
 		_initializeMarkMap = false;
 
-		if (CONCURRENT_FINAL_COLLECTION > executionModeAtGC) {
+		if (CONCURRENT_FINAL_COLLECTION > executionModeAtGC && !_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
 			reportConcurrentHalted(env);
 
 			if (!_markingScheme->getWorkPackets()->tracingExhausted()) {
@@ -3013,7 +3230,36 @@ MM_ConcurrentGC::internalPreCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *
 
 				reportConcurrentCompleteTracingEnd(env, omrtime_hires_clock() - startTime);
 			}
+		} else if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+				
+				/* SATB is yet to be tested with Overflow */
+				Assert_MM_true(_markingScheme->getWorkPackets()->getOverflowFlag() == false);
+				Assert_MM_true(_stats.getConcurrentWorkStackOverflowCount() == 0);
+
+				reportConcurrentCompleteTracingStart(env);
+				uint64_t startTime = omrtime_hires_clock();
+				/* Get assistance from all worker threads to complete processing of any remaining work packets. */
+				/* NOTE: We cant rely on CARDs for SATB for overflow */
+
+
+				if (_extensions->debugSATBlevel >= 1) { 
+					omrtty_printf("[SATB] [internalPreCollect] COMPLETE TRACING \n");
+				}
+
+				MM_ConcurrentCompleteTracingTask completeTracingTask(env, _dispatcher, this, env->_cycleState);
+				_dispatcher->run(env, &completeTracingTask);
+
+				reportConcurrentCompleteTracingEnd(env, omrtime_hires_clock() - startTime);
 		}
+		
+#if defined(OMR_GC_SATB_M1_STRICT)
+	if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+		Assert_MM_true(_markingScheme->getWorkPackets()->getOverflowFlag() == false);
+		Assert_MM_true(_stats.getConcurrentWorkStackOverflowCount() == 0);
+		Assert_MM_true(_markingScheme->getWorkPackets()->tracingExhausted());
+		Assert_MM_true(_markingScheme->getWorkPackets()->isAllPacketsEmpty());
+	}
+#endif /* OMR_GC_SATB_M1_STRICT */
 
 #if defined(OMR_GC_MODRON_SCAVENGER)
 		if(_extensions->scavengerEnabled) {
@@ -3075,6 +3321,11 @@ MM_ConcurrentGC::internalPreCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *
 #endif
 		}
 
+#if defined(OMR_GC_SATB_M1_STRICT)
+		if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+			Assert_MM_true(	_markingScheme->getWorkPackets()->getDeferredPacketCount() == 0);
+		}
+#endif
 		/* Move any remaining deferred work packets to regular lists */
 		_markingScheme->getWorkPackets()->reuseDeferredPackets(env);
 	}
@@ -3141,7 +3392,9 @@ MM_ConcurrentGC::internalPostCollect(MM_EnvironmentBase *env, MM_MemorySubSpace 
 	/* If we flushed all the TLH's correctly in GC the TLH mark bits should be
 	 * all OFF
 	 */
-	assume(_cardTable->isTLHMarkBitsEmpty(env),"TLH mark map not empty");
+	if (!_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()){
+		assume(_cardTable->isTLHMarkBitsEmpty(env),"TLH mark map not empty");
+	}
 
 	/* Re tune for next concurrent cycle if we have had a heap resize or we got far enough
 	 * last time. We only re-tune on a system GC in the event of a heap resize.
@@ -3202,6 +3455,15 @@ MM_ConcurrentGC::abortCollection(MM_EnvironmentBase *env, CollectionAbortReason 
 	_concurrentDelegate.abortCollection(env);
 
 	/* Clear contents of all work packets */
+
+	/* resetAllPackets will not reset in barrier use packets for SATB
+	 * SATB will only abort for insufficient CC work (before Tracing/barrier in enabled) hence barrier packets must be empty 
+	 * SATB Overflow abort is not suppourted 
+	 */
+	if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+		Assert_MM_true(((MM_WorkPacketsSATB *)_markingScheme->getWorkPackets())->count() == 0);
+	}
+
 	_markingScheme->getWorkPackets()->resetAllPackets(env);
 
 	/* Unconditionally change execution mode back to OFF. On a subsequent allocation
@@ -3414,6 +3676,11 @@ MM_ConcurrentGC::completeTracing(MM_EnvironmentBase *env)
 	_stats.incCompleteTracingCount(bytesTraced);
 
 	flushLocalBuffers(env);
+
+	if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+		_markingScheme->markLiveObjectsComplete(env, true); /* There's already a SYNC point in here */
+		env->_workStack.flush(env);
+	}
 }
 
 
@@ -3433,7 +3700,9 @@ MM_ConcurrentGC::finalCleanCards(MM_EnvironmentBase *env)
  	uintptr_t bytesCleaned;
 
 	env->_workStack.reset(env, _markingScheme->getWorkPackets());
-
+#if defined(OMR_GC_SATB_M1_STRICT)
+	unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
 	/* Until no more refs to process */
 	while (moreRefs) {
 		/* Process any available refs. We may have some refs left from concurrent
@@ -3515,6 +3784,9 @@ MM_ConcurrentGC::finalCleanCards(MM_EnvironmentBase *env)
 void
 MM_ConcurrentGC::scanRememberedSet(MM_EnvironmentBase *env)
 {
+#if defined(OMR_GC_SATB_M1_STRICT)
+	unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */
 	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
 	MM_SublistPuddle *puddle;
  	omrobjectptr_t *slotPtr, objectPtr;
@@ -3595,7 +3867,9 @@ MM_ConcurrentGC::scanRememberedSet(MM_EnvironmentBase *env)
 void
 MM_ConcurrentGC::oldToOldReferenceCreated(MM_EnvironmentBase *env, omrobjectptr_t objectPtr)
 {
-	/* todo: Consider doing mark and push-to-scan on child object.
+#if defined(OMR_GC_SATB_M1_STRICT)
+	unreachableSATB();
+#endif /* OMR_GC_SATB_M1_STRICT */	/* todo: Consider doing mark and push-to-scan on child object.
 	 * Child object will be tenured only once during a Scavenge cycle,
 	 * so there are no risks of creating duplicates in scan queue. */
 	Assert_MM_true(CONCURRENT_OFF != _stats.getExecutionMode());
@@ -3764,5 +4038,13 @@ MM_ConcurrentGC::updateMeteringHistoryAfterGC(MM_EnvironmentBase *env)
 		_currentMeteringHistory = ((_currentMeteringHistory + 1) == _meteringHistorySize) ? 0 : _currentMeteringHistory + 1;
 	}
 }
+
+/* Temp DEBUG Wrapper */
+void
+MM_ConcurrentGC::unreachableSATB()
+{
+	if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) { Assert_MM_unreachable(); }
+}
+
 #endif /* OMR_GC_LARGE_OBJECT_AREA */
 #endif /* OMR_GC_MODRON_CONCURRENT_MARK */

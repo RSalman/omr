@@ -48,6 +48,7 @@ private:
 	MM_MarkingScheme *_markingScheme;
 	const bool _initMarkMap;
 	MM_CycleState *_cycleState;  /**< Collection cycle state active for the task */
+	bool _onlyRoots;
 	
 public:
 	virtual uintptr_t getVMStateID();
@@ -69,11 +70,13 @@ public:
 			MM_ParallelDispatcher *dispatcher, 
 			MM_MarkingScheme *markingScheme, 
 			bool initMarkMap,
-			MM_CycleState *cycleState) :
+			MM_CycleState *cycleState,
+			bool onlyRoots = false) :
 		MM_ParallelTask(env, dispatcher)
 		,_markingScheme(markingScheme)
 		,_initMarkMap(initMarkMap)
 		,_cycleState(cycleState)
+		,_onlyRoots(onlyRoots)
 	{
 		_typeId = __FUNCTION__;
 	};

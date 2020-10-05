@@ -280,6 +280,10 @@ MM_RememberedSetSATB::refreshFragment(MM_EnvironmentBase *env, MM_GCRememberedSe
 	MM_Packet *oldPacket = (MM_Packet *)fragment->fragmentStorage;
 		
 	if ((NULL != oldPacket) && (getLocalFragmentIndex(env, fragment) == getGlobalFragmentIndex(env)) && (*fragment->fragmentTop == *fragment->fragmentAlloc)) {
+		if (env->getExtensions()->debugSATBlevel >= 1) {
+			OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+			omrtty_printf("[SATB] [refreshFragment] In-use Barrier Packet >> FullPacket \n");
+		}
 		_workPackets->removePacketFromInUseList(env, oldPacket);
 		_workPackets->putFullPacket(env, oldPacket);
 	}

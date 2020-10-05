@@ -30,6 +30,9 @@
 #include "omrcfg.h"
 #include "omrcomp.h"
 
+
+#define OMR_GC_SATB_M1_STRICT
+
 #define OMR_GC_POLICY_BALANCED 0x4
 #define OMR_GC_POLICY_GENCON 0x3
 #define OMR_GC_POLICY_ILLEGAL 0x0

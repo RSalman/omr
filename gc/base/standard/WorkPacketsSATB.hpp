@@ -44,6 +44,16 @@ public:
 	
 	MM_IncrementalOverflow *getIncrementalOverflowHandler() const { return (MM_IncrementalOverflow*)_overflowHandler; }
 	
+	MMINLINE bool effectiveTraceExhausted()
+	{
+		return((_emptyPacketList.getCount() + _inUseBarrierPacketList.getCount())  == _activePackets);
+	};
+	
+		MMINLINE int count()
+	{
+		return _inUseBarrierPacketList.getCount();
+	};
+	
 
 	MMINLINE bool inUsePacketsAvailable(MM_EnvironmentBase *env) { return !_inUseBarrierPacketList.isEmpty();}
 

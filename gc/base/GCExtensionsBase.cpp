@@ -34,6 +34,9 @@
 #include "Scavenger.hpp"
 #endif /* OMR_GC_MODRON_SCAVENGER */
 
+#include "ModronAssertions.h"
+#include "Configuration.hpp"
+
 MM_GCExtensionsBase*
 MM_GCExtensionsBase::newInstance(MM_EnvironmentBase* env)
 {
@@ -316,4 +319,11 @@ MM_GCExtensionsBase::computeDefaultMaxHeap(MM_EnvironmentBase* env)
 
 	/* Initialize Xmx, Xmdx */
 	memoryMax = MM_Math::roundToFloor(heapAlignment, (uintptr_t)memoryToRequest);
+}
+
+/* TEMP DEBUG WRAPPER FOR SATB */
+void
+MM_GCExtensionsBase::unreachableSATB()
+{
+	if (configuration->isSnapshotAtTheBeginningBarrierEnabled()) { Assert_MM_unreachable(); }
 }

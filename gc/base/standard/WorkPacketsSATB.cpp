@@ -30,6 +30,10 @@
 #include "GCExtensionsBase.hpp"
 #include "OverflowStandard.hpp"
 
+#if defined(OMR_GC_SATB_M1_STRICT)
+#include "ModronAssertions.h"
+#endif /* OMR_GC_SATB_M1_STRICT */
+
 /**
  * Instantiate a MM_WorkPacketsSATB
  * @param mode type of packets (used for getting the right overflow handler)
@@ -122,6 +126,10 @@ MM_WorkPacketsSATB::getBarrierPacket(MM_EnvironmentBase *env)
 MM_Packet *
 MM_WorkPacketsSATB::getPacketByOverflowing(MM_EnvironmentBase *env)
 {
+#if defined(OMR_GC_SATB_M1_STRICT)
+	env->getExtensions()->unreachableSATB(); /*SATB Overflow Path not checked and suppourted  */
+#endif /* OMR_GC_SATB_M1_STRICT */
+	
 	MM_Packet *packet = NULL;
 
 	if (NULL != (packet = getPacket(env, &_fullPacketList))) {

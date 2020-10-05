@@ -33,6 +33,9 @@
 #include "MarkingScheme.hpp"
 #include "WorkStack.hpp"
 
+#include "WorkPacketOverflow.hpp"
+#include "WorkPackets.hpp"
+
 
 uintptr_t
 MM_ParallelMarkTask::getVMStateID()
@@ -43,12 +46,15 @@ MM_ParallelMarkTask::getVMStateID()
 void
 MM_ParallelMarkTask::run(MM_EnvironmentBase *env)
 {
-	env->_workStack.prepareForWork(env, (MM_WorkPackets *)(_markingScheme->getWorkPackets()));
+	env->_workStack.prepareForWork(env, ((MM_WorkPackets *)(_markingScheme->getWorkPackets())));
 
 	_markingScheme->markLiveObjectsInit(env, _initMarkMap);
-	_markingScheme->markLiveObjectsRoots(env);
-	_markingScheme->markLiveObjectsScan(env);
-	_markingScheme->markLiveObjectsComplete(env);
+	_markingScheme->markLiveObjectsRoots(env, _onlyRoots);
+
+	if(!_onlyRoots) {
+		_markingScheme->markLiveObjectsScan(env);
+		_markingScheme->markLiveObjectsComplete(env, _onlyRoots);
+	}
 
 	env->_workStack.flush(env);
 }

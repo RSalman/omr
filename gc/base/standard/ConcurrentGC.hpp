@@ -410,6 +410,8 @@ public:
 		}
 	}
 
+	void unreachableSATB();
+
 	/**
 	 * Force Kickoff event externally
 	 * @return true if Kickoff can be forced

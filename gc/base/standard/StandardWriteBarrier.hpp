@@ -31,6 +31,7 @@
 #include "ObjectModel.hpp"
 #include "Scavenger.hpp"
 #include "SlotObject.hpp"
+#include "Configuration.hpp"
 
 struct OMR_VMThread;
 
@@ -62,7 +63,7 @@ standardWriteBarrier(OMR_VMThread *omrThread, omrobjectptr_t parentObject, omrob
 	}
 #endif /* defined(OMR_GC_MODRON_SCAVENGER) */
 #if defined(OMR_GC_MODRON_CONCURRENT_MARK)
-	if (extensions->concurrentMark) {
+	if (extensions->concurrentMark && !extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
 		extensions->cardTable->dirtyCard(env, parentObject);
 	}
 #endif /* defined(OMR_GC_MODRON_CONCURRENT_MARK) */
