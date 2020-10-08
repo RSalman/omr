@@ -469,6 +469,8 @@ public:
 		return _cardTable;
 	}
 
+	static void tlhRefreshed(J9HookInterface** hook, uintptr_t eventNum, void* eventData, void* userData);
+
 	MMINLINE MM_ConcurrentGCStats *getConcurrentGCStats() { return &_stats; }
 
 	void concurrentWorkStackOverflow();

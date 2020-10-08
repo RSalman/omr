@@ -201,6 +201,7 @@ MM_TLHAllocationInterface::allocateObject(MM_EnvironmentBase *env, MM_AllocateDe
 	}
 
 	if ((NULL != result) && !allocDescription->isCompletedFromTlh()) {
+		env->getExtensions()->checkColorAndMark(env, (omrobjectptr_t)result); /* Mark obj if SATB active and we didn't allocate from TLH */
 #if defined(OMR_GC_OBJECT_ALLOCATION_NOTIFY)
 		env->objectAllocationNotify((omrobjectptr_t)result);
 #endif /* OMR_GC_OBJECT_ALLOCATION_NOTIFY */

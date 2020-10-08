@@ -36,6 +36,7 @@
 
 #include "ModronAssertions.h"
 #include "Configuration.hpp"
+#include "RememberedSetSATB.hpp"
 
 MM_GCExtensionsBase*
 MM_GCExtensionsBase::newInstance(MM_EnvironmentBase* env)
@@ -326,4 +327,20 @@ void
 MM_GCExtensionsBase::unreachableSATB()
 {
 	if (configuration->isSnapshotAtTheBeginningBarrierEnabled()) { Assert_MM_unreachable(); }
+}
+
+void
+MM_GCExtensionsBase::checkColorAndMark(MM_EnvironmentBase *env, omrobjectptr_t objectPtr)
+{
+	if (GC_MARK == env->getAllocationColor()) {
+		Assert_MM_true(isSATBBarrierActive(env));
+		((MM_ParallelGlobalGC *)_globalCollector)->getMarkingScheme()->markObject(env, objectPtr, true);
+	}
+}
+
+bool
+MM_GCExtensionsBase::isSATBBarrierActive(MM_EnvironmentBase *env)
+{
+	return ((configuration->isSnapshotAtTheBeginningBarrierEnabled()) && 
+			(!sATBBarrierRememberedSet->isGlobalFragmentIndexPreserved(env)));
 }

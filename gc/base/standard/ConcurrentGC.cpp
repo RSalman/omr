@@ -77,6 +77,7 @@
 #include "SublistPuddle.hpp"
 #include "SublistSlotIterator.hpp"
 #include "WorkPacketsConcurrent.hpp"
+#include "OMRVMInterface.hpp"
 
 #if defined(OMR_GC_REALTIME)
 #include "RememberedSetSATB.hpp"
@@ -718,11 +719,38 @@ MM_ConcurrentGC::initialize(MM_EnvironmentBase *env)
 		}
 	}
 #endif /* OMR_GC_LARGE_OBJECT_AREA) */
+	
+	/* Should be moved to derived SATB Class */
+	if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+		J9HookInterface** mmPrivateHooks = J9_HOOK_INTERFACE(_extensions->privateHookInterface);
+		(*mmPrivateHooks)->J9HookRegisterWithCallSite(mmPrivateHooks, J9HOOK_MM_PRIVATE_CACHE_REFRESHED, tlhRefreshed, OMR_GET_CALLSITE(), (void *)_markingScheme);
+	}
 
 	return true;
 
 error_no_memory:
 	return false;
+}
+
+/**
+ * Called when a new TLH has been allocated.
+ * We use this broadcast event to trigger premark TLH for SATB.
+ */
+void
+MM_ConcurrentGC::tlhRefreshed(J9HookInterface** hook, uintptr_t eventNum, void* eventData, void* userData)
+{
+	MM_CacheRefreshedEvent* event = (MM_CacheRefreshedEvent*)eventData;
+	MM_EnvironmentBase *env = MM_EnvironmentBase::getEnvironment(event->currentThread);
+
+	Assert_MM_true(env->getExtensions()->configuration->isSnapshotAtTheBeginningBarrierEnabled());
+
+	if (env->getExtensions()->isSATBBarrierActive(env)) {
+		if (env->getExtensions()->debugSATBlevel >= 2) {
+			OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+			omrtty_printf("[MM_ConcurrentGC] [SATB] [tlhRefreshed] Premark TLH [%p][%p] \n", event->cacheBase, event->cacheTop);
+		}
+		((MM_MarkingScheme *)userData)->preMarkTLH(env, (MM_MemorySubSpace *)event->subSpace, event->cacheBase, event->cacheTop);
+	}
 }
 
 /**
@@ -2203,9 +2231,6 @@ MM_ConcurrentGC::concurrentMark(MM_EnvironmentBase *env, MM_MemorySubSpace *subs
 					_callback->requestCallback(env);
 					/* ..and return so that thread can get to a safe point */
 					taxPaid = true;
-#if defined(OMR_GC_SATB_M1_STRICT)
-					unreachableSATB();
-#endif /* OMR_GC_SATB_M1_STRICT */
 				}
 			} else {
 				/* TODO: Once optimizeConcurrentWB enabled by default this code will be deleted */
@@ -2336,6 +2361,7 @@ MM_ConcurrentGC::signalThreadsToActivateWriteBarrier(MM_EnvironmentBase *env)
 				newMode = CONCURRENT_TRACE_ONLY;
 				
 				Assert_MM_true(env->isThreadScanned());
+				GC_OMRVMInterface::flushCachesForGC(env); 
 			}
 #endif /* defined(OMR_GC_REALTIME) */
 
@@ -2417,7 +2443,7 @@ MM_ConcurrentGC::timeToKickoffConcurrent(MM_EnvironmentBase *env, MM_AllocateDes
 	uintptr_t threshold = _stats.getKickoffThreshold();
 	
 	if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
-		threshold = _stats.getKickoffThreshold() * 1.35;
+		threshold = 7500000;
 	}
 
 	if ((remainingFree < threshold) || _forcedKickoff) {
@@ -2427,6 +2453,10 @@ MM_ConcurrentGC::timeToKickoffConcurrent(MM_EnvironmentBase *env, MM_AllocateDes
 #endif /* OMR_GC_CONCURRENT_SWEEP */
 
 		if(_stats.switchExecutionMode(CONCURRENT_OFF, CONCURRENT_INIT_RUNNING)) {
+			if (_extensions->debugSATBlevel >= 1) { 
+				OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+				omrtty_printf("[SATB] CONCURRENT_OFF -> CONCURRENT_INIT_RUNNING [Threshold: %zu mB] [Remaining Free: %zu mB]  \n",(threshold/1000000), (remainingFree/1000000));
+			}
 			_stats.setRemainingFree(remainingFree);
 			/* Set kickoff reason if it is not set yet */
 			_stats.setKickoffReason(KICKOFF_THRESHOLD_REACHED);
@@ -2670,7 +2700,7 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 	}
 	
 	/* TEMP: Use Card Cleaning Threshold as SATB threshold to transition to STW  */
-	uintptr_t SATB_threshold = _stats.getCardCleaningThreshold();
+	uintptr_t SATB_threshold = 0;
 
 	/* Switch state if ...*/
 	if( _extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled() &&
@@ -2679,7 +2709,7 @@ MM_ConcurrentGC::doConcurrentTrace(MM_EnvironmentBase *env,
 
 			OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 			if (_extensions->debugSATBlevel >= 1) { 
-				omrtty_printf(" [SATB] [doConcurrentTrace] remainingFree < SATB_threshold \n"); 
+				omrtty_printf(" [SATB] [doConcurrentTrace] remainingFree < SATB_threshold [SATB_threshold: %zu mB] [remainingFree: %zu mB]\n",(SATB_threshold/1000000), (remainingFree/1000000) );
 			}
 
 				if(_stats.switchExecutionMode(CONCURRENT_TRACE_ONLY, CONCURRENT_EXHAUSTED)) {

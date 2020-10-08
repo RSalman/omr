@@ -1328,6 +1328,9 @@ public:
 
 	void unreachableSATB();
 
+	void checkColorAndMark(MM_EnvironmentBase *env, omrobjectptr_t objectPtr);
+	bool isSATBBarrierActive(MM_EnvironmentBase *env); 
+
 	MM_GCExtensionsBase()
 		: MM_BaseVirtual()
 #if defined(OMR_GC_COMPRESSED_POINTERS) && defined(OMR_GC_FULL_POINTERS)

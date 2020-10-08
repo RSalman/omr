@@ -279,7 +279,7 @@ MM_TLHAllocationSupport::refresh(MM_EnvironmentBase *env, MM_AllocateDescription
 		 * Do not change stats here if TLH is flushed already
 		 */
 		if (0 < getSize()) {
-			reportRefreshCache(env);
+			reportRefreshCache(env); /* This will trigger premark TLH for SATB */
 			stats->_tlhRequestedBytes += getRefreshSize();
 			/* TODO VMDESIGN 1322: adjust the amount consumed by the TLH refresh since a TLH refresh
 			 * may not give you the size requested */

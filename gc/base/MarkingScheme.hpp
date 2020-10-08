@@ -59,6 +59,7 @@ protected:
 
 public:
 
+		void preMarkTLH(MM_EnvironmentBase *env, MM_MemorySubSpace *subspace, void *tlhBase, void *tlhTop);
 	/*
 	 * Function members
 	 */
