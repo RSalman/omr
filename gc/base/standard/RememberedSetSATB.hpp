@@ -71,7 +71,7 @@ public:
 	void restoreGlobalFragmentIndex(MM_EnvironmentBase* env); /* Called by the code that enables the barrier. */
 	/* Used to determine if the realtime write barrier is enabled. */
 	MMINLINE bool
-	isGlobalFragmentIndexPreserved(MM_EnvironmentBase* env)
+	isGlobalFragmentIndexPreserved(MM_EnvironmentBase* env = NULL)
 	{
 		return (J9GC_REMEMBERED_SET_RESERVED_INDEX == _rememberedSetStruct.globalFragmentIndex);
 	}

@@ -591,6 +591,7 @@ MM_ConcurrentGC::kill(MM_EnvironmentBase *env)
 bool
 MM_ConcurrentGC::initialize(MM_EnvironmentBase *env)
 {
+	_extensions->debugSATBlevel = 1;
 	/* First call super class initialize */
 	if (!MM_ParallelGlobalGC::initialize(env)) {
 		goto error_no_memory;
@@ -744,13 +745,13 @@ MM_ConcurrentGC::tlhRefreshed(J9HookInterface** hook, uintptr_t eventNum, void* 
 
 	Assert_MM_true(env->getExtensions()->configuration->isSnapshotAtTheBeginningBarrierEnabled());
 
-	if (env->getExtensions()->isSATBBarrierActive(env)) {
-		if (env->getExtensions()->debugSATBlevel >= 2) {
-			OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
-			omrtty_printf("[MM_ConcurrentGC] [SATB] [tlhRefreshed] Premark TLH [%p][%p] \n", event->cacheBase, event->cacheTop);
-		}
-		((MM_MarkingScheme *)userData)->preMarkTLH(env, (MM_MemorySubSpace *)event->subSpace, event->cacheBase, event->cacheTop);
-	}
+//	if (env->getExtensions()->isSATBBarrierActive(env)) {
+//		if (env->getExtensions()->debugSATBlevel >= 2) {
+//			OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+//			omrtty_printf("[MM_ConcurrentGC] [SATB] [tlhRefreshed] Premark TLH [%p][%p] \n", event->cacheBase, event->cacheTop);
+//		}
+//		((MM_MarkingScheme *)userData)->preMarkTLH(env, (MM_MemorySubSpace *)event->subSpace, event->cacheBase, event->cacheTop);
+//	}
 }
 
 /**
@@ -2227,12 +2228,14 @@ MM_ConcurrentGC::concurrentMark(MM_EnvironmentBase *env, MM_MemorySubSpace *subs
 				if(threadAtSafePoint) {
 					signalThreadsToActivateWriteBarrier(env);
 				} else {
+					Assert_MM_unreachable();
 					/* Register for this thread to get called back at safe point */
 					_callback->requestCallback(env);
 					/* ..and return so that thread can get to a safe point */
 					taxPaid = true;
 				}
 			} else {
+				Assert_MM_unreachable();
 				/* TODO: Once optimizeConcurrentWB enabled by default this code will be deleted */
 				_stats.switchExecutionMode(CONCURRENT_INIT_COMPLETE, CONCURRENT_ROOT_TRACING);
 			}
@@ -2344,24 +2347,25 @@ MM_ConcurrentGC::signalThreadsToActivateWriteBarrier(MM_EnvironmentBase *env)
 #if defined(OMR_GC_REALTIME)
 			if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
 				_extensions->sATBBarrierRememberedSet->restoreGlobalFragmentIndex(env); /*enable write barrier */
-
-				
+				GC_OMRVMInterface::flushCachesForGC(env);
 				if (_extensions->debugSATBlevel >= 1) {
 					OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 					omrtty_printf(" [signalThreadsToActivateWriteBarrier SATB] STW INITAL CONCURRENT_INIT_COMPLETE -> CONCURRENT_TRACE_ONLY \n");
 				}
 
-				markSetup(env);
-				_markingScheme->mainSetupForGC(env);
+//				markSetup(env, true);
+//				_markingScheme->mainSetupForGC(env);
+
 				_concurrentDelegate.signalThreadsToActivateWriteBarrier(env);
+				_concurrentDelegate.doRoots(env);
 				/*Scan Threads in STW Parallel fashion */
-				MM_ParallelMarkTask rootTask(env, _dispatcher, _markingScheme, false, env->_cycleState, true);
-				_dispatcher->run(env, &rootTask);
+//				MM_ParallelMarkTask rootTask(env, _dispatcher, _markingScheme, false, env->_cycleState, true);
+//				_dispatcher->run(env, &rootTask);
 				_extensions->newThreadAllocationColor = GC_MARK;
 				newMode = CONCURRENT_TRACE_ONLY;
 				
 				Assert_MM_true(env->isThreadScanned());
-				GC_OMRVMInterface::flushCachesForGC(env); 
+
 			}
 #endif /* defined(OMR_GC_REALTIME) */
 
@@ -2435,7 +2439,7 @@ MM_ConcurrentGC::timeToKickoffConcurrent(MM_EnvironmentBase *env, MM_AllocateDes
 	}
 
 	/* If we are already out of storage no point even starting concurrent */
-	if (0 == remainingFree) {
+	if (0 == remainingFree || _extensions->disableCC) {
 		return false;
 	}
 	
@@ -2443,7 +2447,7 @@ MM_ConcurrentGC::timeToKickoffConcurrent(MM_EnvironmentBase *env, MM_AllocateDes
 	uintptr_t threshold = _stats.getKickoffThreshold();
 	
 	if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
-		threshold = 7500000;
+		threshold =  (3 * 1000000) ; //9 * 100000000; //_stats.getKickoffThreshold() * 1.35;
 	}
 
 	if ((remainingFree < threshold) || _forcedKickoff) {
@@ -3707,10 +3711,10 @@ MM_ConcurrentGC::completeTracing(MM_EnvironmentBase *env)
 
 	flushLocalBuffers(env);
 
-	if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
-		_markingScheme->markLiveObjectsComplete(env, true); /* There's already a SYNC point in here */
-		env->_workStack.flush(env);
-	}
+//	if (_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
+//		_markingScheme->markLiveObjectsComplete(env, true); /* There's already a SYNC point in here */
+//		env->_workStack.flush(env);
+//	}
 }
 
 

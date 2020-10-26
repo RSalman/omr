@@ -191,7 +191,7 @@ protected:
 	bool initialize(MM_EnvironmentBase *env);
 	void tearDown(MM_EnvironmentBase *env);
 
-	void markSetup(MM_EnvironmentBase *env);
+	void markSetup(MM_EnvironmentBase *env, bool concurrentSATB);
 	virtual void mainThreadGarbageCollect(MM_EnvironmentBase *env, MM_AllocateDescription *allocDescription, bool initMarkMap, bool rebuildMarkBits);
 
 	virtual void setupForGC(MM_EnvironmentBase *env);

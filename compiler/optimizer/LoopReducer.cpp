@@ -975,6 +975,7 @@ TR_LoopReducer::generateArraycopy(TR_InductionVariable * indVar, TR::Block * loo
       case gc_modron_wrtbar_cardmark:
       case gc_modron_wrtbar_cardmark_and_oldcheck:
       case gc_modron_wrtbar_cardmark_incremental:
+      case gc_modron_wrtbar_always:
          needWriteBarrier = true;
          break;
       default:

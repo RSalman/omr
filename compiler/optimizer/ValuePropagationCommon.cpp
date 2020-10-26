@@ -1106,6 +1106,7 @@ void OMR::ValuePropagation::transformArrayCopyCall(TR::Node *node)
          case gc_modron_wrtbar_cardmark:
          case gc_modron_wrtbar_cardmark_and_oldcheck:
          case gc_modron_wrtbar_cardmark_incremental:
+         case gc_modron_wrtbar_always:
             break;
          default:
             needWriteBarrier = false;
@@ -1119,6 +1120,7 @@ void OMR::ValuePropagation::transformArrayCopyCall(TR::Node *node)
       case gc_modron_wrtbar_cardmark:
       case gc_modron_wrtbar_cardmark_and_oldcheck:
       case gc_modron_wrtbar_cardmark_incremental:
+      case gc_modron_wrtbar_always:
          break;
       default:
          needWriteBarrier = false;

@@ -324,17 +324,25 @@ MM_GCExtensionsBase::computeDefaultMaxHeap(MM_EnvironmentBase* env)
 
 /* TEMP DEBUG WRAPPER FOR SATB */
 void
-MM_GCExtensionsBase::unreachableSATB()
+MM_GCExtensionsBase::unreachableSATB(bool active, MM_EnvironmentBase *env) 
 {
-	if (configuration->isSnapshotAtTheBeginningBarrierEnabled()) { Assert_MM_unreachable(); }
+	if (active)
+	{
+		 if (isSATBBarrierActive(env)) { Assert_MM_unreachable(); }
+	}
+	else if (configuration->isSnapshotAtTheBeginningBarrierEnabled()) { Assert_MM_unreachable(); }
 }
 
 void
 MM_GCExtensionsBase::checkColorAndMark(MM_EnvironmentBase *env, omrobjectptr_t objectPtr)
 {
+	if (isSATBBarrierActive(env)) {
+		Assert_MM_true(GC_MARK == env->getAllocationColor());
+		((MM_ParallelGlobalGC *)_globalCollector)->getMarkingScheme()->markObject(env, objectPtr, true);
+	}
+	
 	if (GC_MARK == env->getAllocationColor()) {
 		Assert_MM_true(isSATBBarrierActive(env));
-		((MM_ParallelGlobalGC *)_globalCollector)->getMarkingScheme()->markObject(env, objectPtr, true);
 	}
 }
 

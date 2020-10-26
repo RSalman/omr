@@ -89,6 +89,11 @@ MM_EnvironmentBase::initialize(MM_GCExtensionsBase *extensions)
 	setEnvironmentId(MM_AtomicOperations::add(&extensions->currentEnvironmentCount, 1) - 1);
 	setAllocationColor(extensions->newThreadAllocationColor);
 
+
+	if (extensions->newThreadAllocationColor == GC_MARK) {
+		setThreadScanned(true); 
+	}
+
 	if (extensions->isStandardGC()) {
 		/* pass veryLargeObjectThreshold = 0 to initialize limited size of veryLargeEntryPool for thread (to reduce footprint), 
 		 * but if the threshold is bigger than maxHeap size, we would pass orignal threshold to indicate no veryLargeEntryPool needed 
@@ -199,13 +204,15 @@ MM_EnvironmentBase::reportExclusiveAccessAcquire()
 	_lastExclusiveAccessResponder = _omrVM->exclusiveVMAccessStats.lastResponder;
 	_exclusiveAccessHaltedThreads = _omrVM->exclusiveVMAccessStats.haltedThreads;
 
+	this->getExtensions()->disableCC = true;
+
 	/* report hook */
 	/* first the deprecated trigger */
 	TRIGGER_J9HOOK_MM_PRIVATE_EXCLUSIVE_ACCESS(this->getExtensions()->privateHookInterface, _omrVMThread);
 	/* now the new trigger */
 	TRIGGER_J9HOOK_MM_PRIVATE_EXCLUSIVE_ACCESS_ACQUIRE(
 			this->getExtensions()->privateHookInterface,
-			_omrVMThread,
+			_omrVMThread, 
 			omrtime_hires_clock(),
 			J9HOOK_MM_PRIVATE_EXCLUSIVE_ACCESS_ACQUIRE,
 			_exclusiveAccessTime,
@@ -217,6 +224,8 @@ MM_EnvironmentBase::reportExclusiveAccessAcquire()
 void
 MM_EnvironmentBase::reportExclusiveAccessRelease()
 {
+	this->getExtensions()->disableCC = false;
+
 	OMRPORT_ACCESS_FROM_OMRPORT(_portLibrary);
 	TRIGGER_J9HOOK_MM_PRIVATE_EXCLUSIVE_ACCESS_RELEASE(
 				this->getExtensions()->privateHookInterface,

@@ -188,8 +188,9 @@ MM_TLHAllocationInterface::allocateObject(MM_EnvironmentBase *env, MM_AllocateDe
 			result = subspace->allocateObject(env, allocDescription, NULL, NULL, shouldCollectOnFailure);
 		}
 	} else {
+		//Comment out results and if NULL block of result
 		result = allocateFromTLH(env, allocDescription, shouldCollectOnFailure);
-
+	
 		if (NULL == result) {
 			if (NULL != ac) {
 				result = ac->allocateObject(env, allocDescription, shouldCollectOnFailure);
@@ -201,7 +202,7 @@ MM_TLHAllocationInterface::allocateObject(MM_EnvironmentBase *env, MM_AllocateDe
 	}
 
 	if ((NULL != result) && !allocDescription->isCompletedFromTlh()) {
-		env->getExtensions()->checkColorAndMark(env, (omrobjectptr_t)result); /* Mark obj if SATB active and we didn't allocate from TLH */
+	//	env->getExtensions()->checkColorAndMark(env, (omrobjectptr_t)result); /* Mark obj if SATB active and we didn't allocate from TLH */
 #if defined(OMR_GC_OBJECT_ALLOCATION_NOTIFY)
 		env->objectAllocationNotify((omrobjectptr_t)result);
 #endif /* OMR_GC_OBJECT_ALLOCATION_NOTIFY */
@@ -264,7 +265,7 @@ void *
 MM_TLHAllocationInterface::allocateTLH(MM_EnvironmentBase *env, MM_AllocateDescription *allocDescription, MM_MemorySubSpace *memorySubSpace, MM_MemoryPool *memoryPool)
 {
 	void *result = NULL;
-
+//Commented this block out before
 #if defined(OMR_GC_NON_ZERO_TLH)
 	if (allocDescription->getNonZeroTLHFlag()) {
 		result = _tlhAllocationSupportNonZero.allocateTLH(env, allocDescription, memorySubSpace, memoryPool);

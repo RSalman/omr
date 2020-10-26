@@ -5940,7 +5940,7 @@ TR::Node *indirectStoreSimplifier(TR::Node * node, TR::Block * block, TR::Simpli
 
             cursor = cursor->getPrevTreeTop();
             }
-
+         removeWrtBar = false;
          if (removeWrtBar && !s->comp()->getOptions()->realTimeGC() &&
              performTransformation(s->comp(), "%sFolded indirect write barrier to iastore because GC could not have occurred enough times to require iwrtbar [" POINTER_PRINTF_FORMAT "]\n", s->optDetailString(), node))
             {

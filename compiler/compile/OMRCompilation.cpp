@@ -1729,10 +1729,10 @@ OMR::Compilation::findExtraPrefetchInfo(TR::Node * node, bool use)
 
 bool OMR::Compilation::canTransformUnsafeCopyToArrayCopy()
    {
-   if (!self()->getOptions()->realTimeGC() &&
-       !TR::Compiler->om.canGenerateArraylets() &&
-       self()->cg()->canTransformUnsafeCopyToArrayCopy())
-      return true;
+//   if (!self()->getOptions()->realTimeGC() &&
+//       !TR::Compiler->om.canGenerateArraylets() &&
+//       self()->cg()->canTransformUnsafeCopyToArrayCopy())
+//      return true;
 
    return false;
    }

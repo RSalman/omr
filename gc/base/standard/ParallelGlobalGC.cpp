@@ -418,7 +418,7 @@ MM_ParallelGlobalGC::cleanupAfterGC(MM_EnvironmentBase *env, MM_AllocateDescript
 }
 
 void
-MM_ParallelGlobalGC::markSetup(MM_EnvironmentBase *env) {
+MM_ParallelGlobalGC::markSetup(MM_EnvironmentBase *env, bool concurrentSATB) {
 
 	/* Perform any main-specific setup */
 	/* Tell the GAM to flush its contexts */
@@ -434,9 +434,11 @@ MM_ParallelGlobalGC::markSetup(MM_EnvironmentBase *env) {
 	uintptr_t regionSize = _extensions->regionSize;
 	Assert_MM_true((0 != regionSize) && (0 == (heapBase % regionSize)));
 
-	/* Reset memory pools of associated memory spaces */
-	_extensions->heap->resetSpacesForGarbageCollect(env);
-	
+	if(!concurrentSATB) {
+		/* Reset memory pools of associated memory spaces */
+		_extensions->heap->resetSpacesForGarbageCollect(env);
+	}
+
 	/* Clear the gc stats structure */
 	_extensions->globalGCStats.clear();
 
@@ -466,10 +468,13 @@ MM_ParallelGlobalGC::mainThreadGarbageCollect(MM_EnvironmentBase *env, MM_Alloca
 	/* Mark */
 	if(_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled() && !initMarkMap && !rebuildMarkBits) {
 		Assert_MM_true(_markingScheme->getWorkPackets()->isAllPacketsEmpty());
-		postMark(env);
-		_markingScheme->mainCleanupAfterGC(env);
+//		_extensions->heap->resetSpacesForGarbageCollect(env);
+//		postMark(env);
+//		_markingScheme->mainCleanupAfterGC(env);
+		markSetup(env, false);
+		markAll(env, initMarkMap);
 	} else {
-		markSetup(env);
+		markSetup(env, false);
 		markAll(env, initMarkMap);
 	}
 	

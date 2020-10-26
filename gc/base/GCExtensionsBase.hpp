@@ -218,6 +218,7 @@ protected:
 #endif /* defined(OMR_GC_OBJECT_MAP) */
 
 public:
+	bool disableCC;
 	uintptr_t debugSATBlevel;
 
 	bool _lazyCollectorInit; /**< Are we initializing without a collector? */
@@ -1326,7 +1327,7 @@ public:
 		return (fvtest_disableInlineAllocation || instrumentableAllocateHookEnabled || disableInlineCacheForAllocationThreshold);
 	}
 
-	void unreachableSATB();
+	void unreachableSATB(bool active = false, MM_EnvironmentBase *env = NULL);
 
 	void checkColorAndMark(MM_EnvironmentBase *env, omrobjectptr_t objectPtr);
 	bool isSATBBarrierActive(MM_EnvironmentBase *env); 
@@ -1355,6 +1356,7 @@ public:
 #if defined(OMR_GC_OBJECT_MAP)
 		, _objectMap(NULL)
 #endif /* defined(OMR_GC_OBJECT_MAP) */
+		, disableCC(false)
 		, debugSATBlevel(0)
 		, _lazyCollectorInit(false)
 		, collectorLanguageInterface(NULL)
