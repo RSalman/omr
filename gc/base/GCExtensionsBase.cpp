@@ -34,6 +34,10 @@
 #include "Scavenger.hpp"
 #endif /* OMR_GC_MODRON_SCAVENGER */
 
+#include "ModronAssertions.h"
+#include "Configuration.hpp"
+#include "RememberedSetSATB.hpp"
+
 MM_GCExtensionsBase*
 MM_GCExtensionsBase::newInstance(MM_EnvironmentBase* env)
 {
@@ -316,4 +320,35 @@ MM_GCExtensionsBase::computeDefaultMaxHeap(MM_EnvironmentBase* env)
 
 	/* Initialize Xmx, Xmdx */
 	memoryMax = MM_Math::roundToFloor(heapAlignment, (uintptr_t)memoryToRequest);
+}
+
+/* TEMP DEBUG WRAPPER FOR SATB */
+void
+MM_GCExtensionsBase::unreachableSATB(bool active, MM_EnvironmentBase *env) 
+{
+	if (active)
+	{
+		 if (isSATBBarrierActive(env)) { Assert_MM_unreachable(); }
+	}
+	else if (configuration->isSnapshotAtTheBeginningBarrierEnabled()) { Assert_MM_unreachable(); }
+}
+
+void
+MM_GCExtensionsBase::checkColorAndMark(MM_EnvironmentBase *env, omrobjectptr_t objectPtr)
+{
+	if (isSATBBarrierActive(env)) {
+		Assert_MM_true(GC_MARK == env->getAllocationColor());
+		((MM_ParallelGlobalGC *)_globalCollector)->getMarkingScheme()->markObject(env, objectPtr, true);
+	}
+	
+	if (GC_MARK == env->getAllocationColor()) {
+		Assert_MM_true(isSATBBarrierActive(env));
+	}
+}
+
+bool
+MM_GCExtensionsBase::isSATBBarrierActive(MM_EnvironmentBase *env)
+{
+	return ((configuration->isSnapshotAtTheBeginningBarrierEnabled()) && 
+			(!sATBBarrierRememberedSet->isGlobalFragmentIndexPreserved(env)));
 }

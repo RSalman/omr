@@ -63,7 +63,7 @@ MM_TLHAllocationSupport::reportClearCache(MM_EnvironmentBase *env)
 	MM_GCExtensionsBase *extensions = env->getExtensions();
 	MM_MemorySubSpace *subspace = env->getMemorySpace()->getDefaultMemorySubSpace();
 
-	TRIGGER_J9HOOK_MM_PRIVATE_CACHE_CLEARED(extensions->privateHookInterface, _omrVMThread, subspace, getBase(), getAlloc(), getTop());
+	TRIGGER_J9HOOK_MM_PRIVATE_CACHE_CLEARED(extensions->privateHookInterface, _omrVMThread, subspace, getBase(), getAlloc(), getRealTop());
 }
 
 /**
@@ -74,7 +74,7 @@ MM_TLHAllocationSupport::reportRefreshCache(MM_EnvironmentBase *env)
 {
 	MM_MemorySubSpace *subspace = env->getMemorySpace()->getDefaultMemorySubSpace();
 
-	TRIGGER_J9HOOK_MM_PRIVATE_CACHE_REFRESHED(env->getExtensions()->privateHookInterface, _omrVMThread, subspace, getBase(), getTop());
+	TRIGGER_J9HOOK_MM_PRIVATE_CACHE_REFRESHED(env->getExtensions()->privateHookInterface, _omrVMThread, subspace, getBase(), getRealTop());
 }
 
 /**
@@ -92,7 +92,7 @@ MM_TLHAllocationSupport::clear(MM_EnvironmentBase *env)
 	/* Any previous cache to clear  ? */
 	if (NULL != memoryPool) {
 		memoryPool->abandonTlhHeapChunk(getAlloc(), getRealTop());
-		reportClearCache(env);
+		//reportClearCache(env);
 	}
 	wipeTLH(env);
 }
@@ -113,6 +113,7 @@ MM_TLHAllocationSupport::clear(MM_EnvironmentBase *env)
 	if(shouldFlush) {
 		_abandonedList = NULL;
 		_abandonedListSize = 0;
+		reportClearCache(env);
 		clear(env);
 	} else {
 		/* Clear current information accumulated */
@@ -177,6 +178,7 @@ MM_TLHAllocationSupport::refresh(MM_EnvironmentBase *env, MM_AllocateDescription
 	stats->_tlhAllocatedUsed += usedSize;
 
 	/* Try to cache the current TLH */
+	reportClearCache(env);
 	if ((NULL != getRealTop()) && (getRemainingSize() >= tlhMinimumSize)) {
 		/* Cache the current TLH because it is bigger than the minimum size */
 		MM_HeapLinkedFreeHeaderTLH* newCache = (MM_HeapLinkedFreeHeaderTLH*)getAlloc();
@@ -279,7 +281,7 @@ MM_TLHAllocationSupport::refresh(MM_EnvironmentBase *env, MM_AllocateDescription
 		 * Do not change stats here if TLH is flushed already
 		 */
 		if (0 < getSize()) {
-			reportRefreshCache(env);
+			reportRefreshCache(env); /* This will trigger premark TLH for SATB */
 			stats->_tlhRequestedBytes += getRefreshSize();
 			/* TODO VMDESIGN 1322: adjust the amount consumed by the TLH refresh since a TLH refresh
 			 * may not give you the size requested */
@@ -357,6 +359,7 @@ MM_TLHAllocationSupport::flushCache(MM_EnvironmentBase *env)
 	/* Since AllocationStats have been reset, reset the base as well*/
 	_abandonedList = NULL;
 	_abandonedListSize = 0;
+	reportClearCache(env);
 	clear(env);
 }
 

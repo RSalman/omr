@@ -1132,7 +1132,7 @@ OMR::X86::CodeGenerator::getNanoTimeTemp()
 bool
 OMR::X86::CodeGenerator::canTransformUnsafeCopyToArrayCopy()
    {
-   return !self()->comp()->getOption(TR_DisableArrayCopyOpts);
+   return false;
    }
 
 void OMR::X86::CodeGenerator::saveBetterSpillPlacements(TR::Instruction * branchInstruction)

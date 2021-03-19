@@ -59,6 +59,9 @@ protected:
 
 public:
 
+	void preMarkTLH(MM_EnvironmentBase *env, MM_MemorySubSpace *subspace, void *tlhBase, void *tlhTop);
+	void clearPremarkedTLH(MM_EnvironmentBase *env, MM_MemorySubSpace *subspace, void *tlhAlloc, void *tlhTop);
+		
 	/*
 	 * Function members
 	 */
@@ -106,7 +109,7 @@ public:
 	 *  Create Root Scanner and Mark all roots including classes and classloaders if dynamic class unloading is enabled
 	 *  @param[in] env - passed Environment 
 	 */
-	void markLiveObjectsRoots(MM_EnvironmentBase *env);
+	void markLiveObjectsRoots(MM_EnvironmentBase *env, bool concurrentSATB = false);
 
 	/**
 	 *  Scan (complete)
@@ -121,7 +124,7 @@ public:
 	 *  Final Mark services including scanning of Clearables
 	 *  @param[in] env - passed Environment 
 	 */
-	void markLiveObjectsComplete(MM_EnvironmentBase *env);
+	void markLiveObjectsComplete(MM_EnvironmentBase *env, bool concurrentSATB = false);
 
 
 	/**

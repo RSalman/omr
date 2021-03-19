@@ -412,14 +412,34 @@ MM_ParallelSweepScheme::performSamplingCalculations(MM_ParallelSweepChunk *sweep
 	 */
 	omrobjectptr_t prevObject = markedObjectIterator.nextObject();
 	Assert_MM_true(NULL != prevObject);
+	OMRPORT_ACCESS_FROM_OMRVM(_extensions->getOmrVM());
+	omrtty_printf(" **** Pre Check \t");
+	J9Class* clazz = J9GC_J9OBJECT_CLAZZ(prevObject, _extensions);
+	Assert_MM_true(NULL != clazz);
+	bool temp = J9GC_CLASS_IS_ARRAY(clazz);
+	temp = !temp;
+	omrtty_printf(" $$ ");
 	uintptr_t prevObjectSize = _extensions->objectModel.getConsumedSizeInBytesWithHeader(prevObject);
+	omrtty_printf("POST Check **** \n");
 
 	omrobjectptr_t object = NULL;
 	while (NULL != (object = markedObjectIterator.nextObject())) {
+
+
 		uintptr_t holeSize = (uintptr_t)object - ((uintptr_t)prevObject + prevObjectSize);
+
+		if (! (holeSize < minimumFreeEntrySize)) {
+			omrtty_printf(" object [%p] - prevObject [%p]\n", object, prevObject);
+		}
+
 		Assert_MM_true(holeSize < minimumFreeEntrySize);
 		darkMatter += holeSize;
 		prevObject = object;
+
+		if (prevObject == NULL) {
+			omrtty_printf("%p is NULL", prevObject);
+		}
+
 		prevObjectSize = _extensions->objectModel.getConsumedSizeInBytesWithHeader(prevObject);
 	}
 
@@ -520,6 +540,9 @@ MM_ParallelSweepScheme::sweepChunk(MM_EnvironmentBase *env, MM_ParallelSweepChun
 		if (0 == heapSlotFreeCount) {
 			darkMatterCandidates += 1;
 			if (0 == (darkMatterCandidates % darkMatterSampleRate)) {
+				OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+				omrtty_printf("ParallelSweepScheme::sweepChunk B [%p] - T [%p] \n", sweepChunk->chunkBase , sweepChunk->chunkTop);
+
 				darkMatterBytes += performSamplingCalculations(sweepChunk, markMapCurrent, heapSlotFreeCurrent);
 				darkMatterSamples += 1;
 			}

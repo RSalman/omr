@@ -358,9 +358,9 @@ MM_MarkingScheme::markLiveObjectsInit(MM_EnvironmentBase *env, bool initMarkMap)
  *  @param[in] shouldScan instruct should scanning also be active while roots are marked   
  */
 void
-MM_MarkingScheme::markLiveObjectsRoots(MM_EnvironmentBase *env)
+MM_MarkingScheme::markLiveObjectsRoots(MM_EnvironmentBase *env, bool concurrentSATB)
 {
-	_delegate.scanRoots(env);
+	_delegate.scanRoots(env, concurrentSATB);
 }
 
 void
@@ -382,9 +382,9 @@ MM_MarkingScheme::completeMarking(MM_EnvironmentBase *env)
  *  @param[in] env - passed Environment 
  */
 void
-MM_MarkingScheme::markLiveObjectsComplete(MM_EnvironmentBase *env)
+MM_MarkingScheme::markLiveObjectsComplete(MM_EnvironmentBase *env, bool concurrentSATB)
 {
-	_delegate.workerCompleteGC(env);
+	_delegate.workerCompleteGC(env, concurrentSATB);
 }
 
 MM_WorkPackets *
@@ -434,4 +434,54 @@ MM_MarkingScheme::setupIndexableScanner(MM_EnvironmentBase *env, omrobjectptr_t 
 {
 	return _delegate.setupIndexableScanner(env, objectPtr, reason, sizeToDo, sizeInElementsToDo, basePtr, flags);
 }
+
+void
+MM_MarkingScheme::preMarkTLH(MM_EnvironmentBase *env, MM_MemorySubSpace *subspace, void *tlhBase, void *tlhTop)
+{
+	Assert_MM_true(subspace->isConcurrentCollectable()); /* We should only get called for concurrently collectable subspaces */
+	Assert_MM_true((uintptr_t *)tlhTop >  (uintptr_t *)tlhBase); /* Check passed tlh is reasonable */
+
+	/* objPtrHigh is the last object  to be premarked.
+	 * => if there is only one object to premark than low will be equal to high
+	 */
+
+	uintptr_t slotIndexLow, slotIndexHigh;
+	uintptr_t bitMaskLow, bitMaskHigh;
+
+	_markMap->getSlotIndexAndBlockMask((omrobjectptr_t)tlhBase, &slotIndexLow, &bitMaskLow, false /* high bit block mask for low slot word */);
+	_markMap->getSlotIndexAndBlockMask((omrobjectptr_t) ((uintptr_t) tlhTop - 1), &slotIndexHigh, &bitMaskHigh, true /* low bit block mask for high slot word */);
+
+	if (slotIndexLow == slotIndexHigh) {
+		_markMap->markBlockAtomic(slotIndexLow, bitMaskLow & bitMaskHigh);
+	} else {
+		_markMap->markBlockAtomic(slotIndexLow, bitMaskLow);
+		_markMap->setMarkBlock(slotIndexLow /* 1.+ 1*/, slotIndexHigh /*- 1*/, (uintptr_t)-1);
+		_markMap->markBlockAtomic(slotIndexHigh, bitMaskHigh);
+	}
+}
+
+void
+MM_MarkingScheme::clearPremarkedTLH(MM_EnvironmentBase *env, MM_MemorySubSpace *subspace, void *tlhAlloc, void *tlhTop)
+{
+//	2. if(tlhAlloc == tlhTop) {
+//		return;
+//	}
+
+	Assert_MM_true(subspace->isConcurrentCollectable()); /* We should only get called for concurrently collectable subspaces */
+	//Assert_MM_true((uintptr_t *)tlhTop > (uintptr_t *)tlhAlloc); /* Check passed tlh is reasonable */
+
+	/* objPtrHigh is the last object  to be premarked.
+	 * => if there is only one object to premark than low will be equal to high
+	 */
+
+	uintptr_t slotIndexLow;
+	uintptr_t slotIndexHigh;
+	uintptr_t bitMask;
+//((uintptr_t) tlhTop - 1)
+	_markMap->getSlotIndexAndMask((omrobjectptr_t) tlhAlloc, &slotIndexLow, &bitMask);
+	_markMap->getSlotIndexAndMask((omrobjectptr_t) ((uintptr_t) tlhTop /*3. - 1*/), &slotIndexHigh, &bitMask);
+
+	_markMap->setMarkBlock(slotIndexLow, slotIndexHigh, 0);
+}
+
 
