@@ -735,7 +735,12 @@ MM_VerboseHandlerOutputStandard::handleConcurrentHalted(J9HookInterface** hook, 
 			event->traceTarget, event->tracedTotal,
 			event->tracedByMutators, event->tracedByHelpers,
 			event->traceTarget == 0 ? 0 : (uintptr_t)(((uint64_t)event->tracedTotal * 100) / (uint64_t)event->traceTarget));
-	writer->formatAndOutput(env, 1, "<cards cleaned=\"%zu\" thresholdBytes=\"%zu\" />", event->cardsCleaned, event->cardCleaningThreshold);
+
+	/* Temp check while SATB and incremental share Verbose Handler */
+	if (event->cardsCleaned != UDATA_MAX) {
+		writer->formatAndOutput(env, 1, "<cards cleaned=\"%zu\" thresholdBytes=\"%zu\" />", event->cardsCleaned, event->cardCleaningThreshold);
+	}
+
 	writer->formatAndOutput(env, 0, "</concurrent-halted>");
 	writer->flush(env);
 
@@ -776,20 +781,15 @@ MM_VerboseHandlerOutputStandard::handleConcurrentCollectionStart(J9HookInterface
 	}
 	uint64_t deltaTime = omrtime_hires_delta(previousTime, currentTime, OMRPORT_TIME_DELTA_IN_MICROSECONDS);
 
-	const char* cardCleaningReasonString = getCardCleaningReasonString(event->cardCleaningReason);
-
 	char tagTemplate[200];
 	enterAtomicReportingBlock();
 	getTagTemplate(tagTemplate, sizeof(tagTemplate), manager->getIdAndIncrement(), event->contextid, omrtime_current_time_millis());
 	writer->formatAndOutput(env, 0, "<concurrent-global-final %s intervalms=\"%llu.%03llu\" >",
 		tagTemplate, deltaTime / 1000, deltaTime % 1000);
-	writer->formatAndOutput(env, 1, "<concurrent-trace-info reason=\"%s\" tracedByMutators=\"%zu\" tracedByHelpers=\"%zu\" cardsCleaned=\"%zu\" workStackOverflowCount=\"%zu\" />",
-		cardCleaningReasonString, event->tracedByMutators, event->tracedByHelpers, event->cardsCleaned, event->workStackOverflowCount);
+	handleConcurrentCollectionStartInternal(env, eventData);
   	writer->formatAndOutput(env, 0, "</concurrent-global-final>");
 
 	writer->flush(env);
-
-	handleConcurrentCollectionStartInternal(env, eventData);
 
 	exitAtomicReportingBlock();
 }
@@ -797,7 +797,19 @@ MM_VerboseHandlerOutputStandard::handleConcurrentCollectionStart(J9HookInterface
 void
 MM_VerboseHandlerOutputStandard::handleConcurrentCollectionStartInternal(MM_EnvironmentBase *env, void* eventData)
 {
-	/* Empty stub */
+	MM_ConcurrentCollectionStartEvent* event = (MM_ConcurrentCollectionStartEvent*)eventData;
+	MM_VerboseWriterChain* writer = getManager()->getWriterChain();
+
+	/* Temp check while SATB and incremental share Verbose Handler */
+	if (event->cardsCleaned != UDATA_MAX) {
+		const char* cardCleaningReasonString = getCardCleaningReasonString(event->cardCleaningReason);
+
+		writer->formatAndOutput(env, 1, "<concurrent-trace-info reason=\"%s\" tracedByMutators=\"%zu\" tracedByHelpers=\"%zu\" cardsCleaned=\"%zu\" workStackOverflowCount=\"%zu\" />",
+			cardCleaningReasonString, event->tracedByMutators, event->tracedByHelpers, event->cardsCleaned, event->workStackOverflowCount);
+	} else {
+		writer->formatAndOutput(env, 1, "<concurrent-trace-info tracedByMutators=\"%zu\" tracedByHelpers=\"%zu\" workStackOverflowCount=\"%zu\" />",
+					 event->tracedByMutators, event->tracedByHelpers, event->workStackOverflowCount);
+	}
 }
 
 void
