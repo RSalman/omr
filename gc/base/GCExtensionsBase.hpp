@@ -1347,6 +1347,10 @@ public:
 		return (fvtest_disableInlineAllocation || instrumentableAllocateHookEnabled || disableInlineCacheForAllocationThreshold);
 	}
 
+	void checkColorAndMark(MM_EnvironmentBase *env, omrobjectptr_t objectPtr);
+	bool isSATBBarrierActive();
+	bool usingSATBBarrier();
+
 	MM_GCExtensionsBase()
 		: MM_BaseVirtual()
 #if defined(OMR_GC_MODRON_SCAVENGER)

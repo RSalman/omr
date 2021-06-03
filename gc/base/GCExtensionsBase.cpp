@@ -34,6 +34,11 @@
 #include "Scavenger.hpp"
 #endif /* OMR_GC_MODRON_SCAVENGER */
 
+#if defined(OMR_GC_REALTIME)
+#include "Configuration.hpp"
+#include "RememberedSetSATB.hpp"
+#endif /* defined(OMR_GC_REALTIME) */
+
 MM_GCExtensionsBase*
 MM_GCExtensionsBase::newInstance(MM_EnvironmentBase* env)
 {
@@ -316,4 +321,33 @@ MM_GCExtensionsBase::computeDefaultMaxHeap(MM_EnvironmentBase* env)
 
 	/* Initialize Xmx, Xmdx */
 	memoryMax = MM_Math::roundToFloor(heapAlignment, (uintptr_t)memoryToRequest);
+}
+
+void
+MM_GCExtensionsBase::checkColorAndMark(MM_EnvironmentBase *env, omrobjectptr_t objectPtr)
+{
+#if defined(OMR_GC_REALTIME)
+	if (isSATBBarrierActive()) {
+		Assert_MM_true(GC_MARK == env->getAllocationColor());
+		((MM_ParallelGlobalGC *)_globalCollector)->getMarkingScheme()->markObject(env, objectPtr, true);
+	}
+#endif /* defined(OMR_GC_REALTIME) */
+}
+
+bool
+MM_GCExtensionsBase::isSATBBarrierActive()
+{
+#if defined(OMR_GC_REALTIME)
+	return ((usingSATBBarrier()) && (!sATBBarrierRememberedSet->isGlobalFragmentIndexPreserved()));
+#endif /* defined(OMR_GC_REALTIME) */
+	return false;
+}
+
+bool
+MM_GCExtensionsBase::usingSATBBarrier()
+{
+#if defined(OMR_GC_REALTIME)
+	return (configuration->isSnapshotAtTheBeginningBarrierEnabled());
+#endif /* defined(OMR_GC_REALTIME) */
+	return false;
 }

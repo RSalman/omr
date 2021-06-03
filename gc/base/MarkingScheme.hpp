@@ -115,7 +115,7 @@ public:
 	 *  objects) may still be revived by by subsequent stages.   
 	 *  @param[in] env - passed Environment 
 	 */
-	void markLiveObjectsScan(MM_EnvironmentBase *env);
+	void markLiveObjectsScan(MM_EnvironmentBase *env,  bool processLists);
 	
 	/**
 	 *  Final Mark services including scanning of Clearables

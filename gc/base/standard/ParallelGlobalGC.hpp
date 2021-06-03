@@ -265,6 +265,8 @@ protected:
 		return sweepScheme;
 	}
 
+	virtual bool rootsRequired() { return true; };
+
 public:
 	static MM_ParallelGlobalGC *newInstance(MM_EnvironmentBase *env);
 	virtual void kill(MM_EnvironmentBase *env);

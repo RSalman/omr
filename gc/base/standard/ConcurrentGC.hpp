@@ -257,9 +257,6 @@ private:
 	void reportConcurrentBackgroundThreadActivated(MM_EnvironmentBase *env);
 	void reportConcurrentBackgroundThreadFinished(MM_EnvironmentBase *env, uintptr_t traceTotal);
 	
-	void reportConcurrentCompleteTracingStart(MM_EnvironmentBase *env);
-	void reportConcurrentCompleteTracingEnd(MM_EnvironmentBase *env, uint64_t duration);
-	
 	void reportConcurrentRememberedSetScanStart(MM_EnvironmentBase *env);
 	void reportConcurrentRememberedSetScanEnd(MM_EnvironmentBase *env, uint64_t duration);
 
@@ -316,11 +313,11 @@ protected:
 	virtual void adjustTraceTarget() = 0;
 	virtual void tuneToHeap(MM_EnvironmentBase *env) = 0;
 	virtual void finalConcurrentPrecollect(MM_EnvironmentBase *env) = 0;
-	virtual void signalThreadsToActivateWriteBarrierInternal(MM_EnvironmentBase *env) = 0;
+	virtual void setupForConcurrent(MM_EnvironmentBase *env) = 0;
 
 	virtual void resetConcurrentParameters(MM_EnvironmentBase *env);
 	virtual	bool cleanCards(MM_EnvironmentBase *env, bool isMutator, uintptr_t sizeToDo, uintptr_t  *sizeDone, bool threadAtSafePoint) { return false; };
-	virtual void preCompleteConcurrentCycle(MM_EnvironmentBase *env) {};
+	virtual void completeConcurrentTracing(MM_EnvironmentBase *env, uintptr_t executionModeAtGC) {};
 	virtual void updateTuningStatisticsInternal(MM_EnvironmentBase *env) {};
 
 	float interpolateInRange(float, float, float, uintptr_t);
@@ -330,6 +327,9 @@ protected:
 	bool tracingRateDropped(MM_EnvironmentBase *env);
 #if defined(OMR_GC_MODRON_SCAVENGER)
 	uintptr_t potentialFreeSpace(MM_EnvironmentBase *env, MM_AllocateDescription *allocDescription);
+
+	void reportConcurrentCompleteTracingStart(MM_EnvironmentBase *env);
+	void reportConcurrentCompleteTracingEnd(MM_EnvironmentBase *env, uint64_t duration);
 #endif /*OMR_GC_MODRON_SCAVENGER */
 public:
 	virtual uintptr_t getVMStateID() { return OMRVMSTATE_GC_COLLECTOR_CONCURRENTGC; };
@@ -347,6 +347,7 @@ public:
 
 	virtual void scanThread(MM_EnvironmentBase *env)
 	{
+		Assert_MM_true(!_extensions->usingSATBBarrier());
 		uintptr_t mode = _stats.getExecutionMode();
 		if ((CONCURRENT_ROOT_TRACING <= mode) && (CONCURRENT_EXHAUSTED > mode)) {
 			env->_workStack.reset(env, _markingScheme->getWorkPackets());

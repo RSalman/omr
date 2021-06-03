@@ -26,12 +26,14 @@
  * @ingroup GC_Modron_Standard
  */
 
-#if !defined(PARALLELMARKTASK_HPP_)
-#define PARALLELMARKTASK_HPP_
+#if !defined(SATBRootsTASK_HPP_)
+#define SATBRootsTASK_HPP_
 
 #include "omrcfg.h"
 
 #include "CycleState.hpp"
+#include "ConcurrentGCSATB.hpp"
+#include "ParallelTask.hpp"
 #include "ParallelTask.hpp"
 
 class MM_EnvironmentBase;
@@ -42,44 +44,35 @@ class MM_ParallelDispatcher;
  * @todo Provide class documentation
  * @ingroup GC_Modron_Standard
  */
-class MM_ParallelMarkTask : public MM_ParallelTask
+class MM_SATBRootsTask : public MM_ParallelTask
 {
 private:
 	MM_MarkingScheme *_markingScheme;
-	const bool _initMarkMap;
-	const bool _skipRoots;
 	MM_CycleState *_cycleState;  /**< Collection cycle state active for the task */
+	MM_ConcurrentGCSATB *_collector;
 	
 public:
-	virtual uintptr_t getVMStateID();
+	virtual uintptr_t getVMStateID() { return OMRVMSTATE_GC_MARK; };
 	
 	virtual void run(MM_EnvironmentBase *env);
 	virtual void setup(MM_EnvironmentBase *env);
 	virtual void cleanup(MM_EnvironmentBase *env);
-	
-#if defined(J9MODRON_TGC_PARALLEL_STATISTICS)
-	virtual void synchronizeGCThreads(MM_EnvironmentBase *env, const char *id);
-	virtual bool synchronizeGCThreadsAndReleaseMain(MM_EnvironmentBase *env, const char *id);
-	virtual bool synchronizeGCThreadsAndReleaseSingleThread(MM_EnvironmentBase *env, const char *id);
-#endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
 	/**
-	 * Create a ParallelMarkTask object.
+	 * Create a SATBRootsTask object.
 	 */
-	MM_ParallelMarkTask(MM_EnvironmentBase *env,
-			MM_ParallelDispatcher *dispatcher, 
+	MM_SATBRootsTask(MM_EnvironmentBase *env,
+			MM_ParallelDispatcher *dispatcher,
+			MM_ConcurrentGCSATB *collector,
 			MM_MarkingScheme *markingScheme, 
-			bool initMarkMap,
-			MM_CycleState *cycleState,
-			bool skipRoots = false) :
+			MM_CycleState *cycleState) :
 		MM_ParallelTask(env, dispatcher)
 		,_markingScheme(markingScheme)
-		,_initMarkMap(initMarkMap)
-		,_skipRoots(skipRoots)
 		,_cycleState(cycleState)
+		,_collector(collector)
 	{
 		_typeId = __FUNCTION__;
 	};
 };
 
-#endif /* PARALLELMARKTASK_HPP_ */
+#endif /* SATBRootsTASK_HPP_ */

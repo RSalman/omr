@@ -141,6 +141,7 @@ set(omrgc_sources
 	base/ReferenceChainWalkerMarkMap.cpp
 	base/RegionPool.cpp
 	base/RegionPoolGeneric.cpp
+	base/SATBRootsTask.hpp
 	base/StartupManager.cpp
 	base/SweepHeapSectioning.cpp
 	base/SweepPoolManager.cpp

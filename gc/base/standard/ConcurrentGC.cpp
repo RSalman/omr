@@ -1602,6 +1602,7 @@ MM_ConcurrentGC::concurrentMark(MM_EnvironmentBase *env, MM_MemorySubSpace *subs
 					taxPaid = true;
 				}
 			} else {
+				Assert_MM_true(_extensions->configuration->isIncrementalUpdateBarrierEnabled());
 				/* TODO: Once optimizeConcurrentWB enabled by default this code will be deleted */
 				_stats.switchExecutionMode(CONCURRENT_INIT_COMPLETE, CONCURRENT_ROOT_TRACING);
 			}
@@ -1627,6 +1628,7 @@ MM_ConcurrentGC::concurrentMark(MM_EnvironmentBase *env, MM_MemorySubSpace *subs
 
 		case CONCURRENT_ROOT_TRACING:
 			nextExecutionMode = _concurrentDelegate.getNextTracingMode(CONCURRENT_ROOT_TRACING);
+			Assert_MM_true(_extensions->configuration->isIncrementalUpdateBarrierEnabled());
 			Assert_GC_true_with_message(env, (CONCURRENT_ROOT_TRACING < nextExecutionMode) || (CONCURRENT_TRACE_ONLY == nextExecutionMode), "MM_ConcurrentMarkingDelegate::getNextTracingMode(CONCURRENT_ROOT_TRACING) = %zu\n", nextExecutionMode);
 			if(_stats.switchExecutionMode(CONCURRENT_ROOT_TRACING, nextExecutionMode)) {
 				/* Signal threads for async callback to scan stack*/
@@ -1636,6 +1638,7 @@ MM_ConcurrentGC::concurrentMark(MM_EnvironmentBase *env, MM_MemorySubSpace *subs
 			break;
 
 		default:
+			Assert_MM_true(_extensions->configuration->isIncrementalUpdateBarrierEnabled());
 			/* Client language defines 1 or more execution modes with values > CONCURRENT_ROOT_TRACING */
 			Assert_GC_true_with_message(env, (CONCURRENT_ROOT_TRACING < executionMode) && (CONCURRENT_TRACE_ONLY > executionMode), "MM_ConcurrentStats::_executionMode = %zu\n", executionMode);
 			nextExecutionMode = _concurrentDelegate.getNextTracingMode(executionMode);
@@ -1696,8 +1699,8 @@ MM_ConcurrentGC::signalThreadsToActivateWriteBarrier(MM_EnvironmentBase *env)
 
 			_concurrentPhaseStats.clear();
 			preConcurrentInitializeStatsAndReport(env);
-			_concurrentDelegate.signalThreadsToActivateWriteBarrier(env);
-			signalThreadsToActivateWriteBarrierInternal(env);
+
+			setupForConcurrent(env);
 
 			/* Cancel any outstanding call backs on other threads as this thread has done the necessary work */
 			_callback->cancelCallback(env);
@@ -1913,6 +1916,7 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 				}
 				break;
 			case CARD_TABLE:
+				Assert_MM_true(_extensions->configuration->isIncrementalUpdateBarrierEnabled());
 				if(NULL != _cardTable) {
 					initDone += ((MM_ConcurrentCardTable *)_cardTable)->clearCardsInRange(env,from,to);
 				}
@@ -1979,11 +1983,6 @@ MM_ConcurrentGC::concurrentFinalCollection(MM_EnvironmentBase *env, MM_MemorySub
 {
 	/* Switch to FINAL_COLLECTION; if we fail another thread beat us to it so just return */
 	if	(_stats.switchExecutionMode(CONCURRENT_EXHAUSTED, CONCURRENT_FINAL_COLLECTION)) {
-#if defined(OMR_GC_REALTIME)
-		if(_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
-			_extensions->sATBBarrierRememberedSet->preserveGlobalFragmentIndex(env);
-		}
-#endif /* defined(OMR_GC_REALTIME) */
 		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 		_concurrentPhaseStats._endTime = omrtime_hires_clock();
 		postConcurrentUpdateStatsAndReport(env);
@@ -2122,9 +2121,8 @@ MM_ConcurrentGC::internalPreCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *
 		reportGlobalGCIncrementStart(env);
 
 		/* Switch the executionMode to OFF to complete the STW collection */
-		if (_stats.switchExecutionMode(executionModeAtGC, CONCURRENT_OFF)) {
-			preCompleteConcurrentCycle(env);
-		}
+		_stats.switchExecutionMode(executionModeAtGC, CONCURRENT_OFF);
+
 #if defined(OMR_GC_MODRON_SCAVENGER)
 		_extensions->setConcurrentGlobalGCInProgress(false);
 #endif
@@ -2134,23 +2132,7 @@ MM_ConcurrentGC::internalPreCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *
 		 */
 		_initializeMarkMap = false;
 
-		if (CONCURRENT_FINAL_COLLECTION > executionModeAtGC) {
-			reportConcurrentHalted(env);
-
-			if (!_markingScheme->getWorkPackets()->tracingExhausted()) {
-
-				reportConcurrentCompleteTracingStart(env);
-				uint64_t startTime = omrtime_hires_clock();
-				/* Get assistance from all worker threads to complete processing of any remaining work packets.
-				 * In the event of work stack overflow we will just dirty cards which will get processed during
-				 * final card cleaning.
-				 */
-				MM_ConcurrentCompleteTracingTask completeTracingTask(env, _dispatcher, this, env->_cycleState);
-				_dispatcher->run(env, &completeTracingTask);
-
-				reportConcurrentCompleteTracingEnd(env, omrtime_hires_clock() - startTime);
-			}
-		}
+		completeConcurrentTracing(env, executionModeAtGC);
 
 #if defined(OMR_GC_MODRON_SCAVENGER)
 		if(_extensions->scavengerEnabled) {
@@ -2801,6 +2783,7 @@ MM_ConcurrentGC::updateMeteringHistoryAfterGC(MM_EnvironmentBase *env)
 		_currentMeteringHistory = ((_currentMeteringHistory + 1) == _meteringHistorySize) ? 0 : _currentMeteringHistory + 1;
 	}
 }
+
 void
 MM_ConcurrentGC::notifyAcquireExclusiveVMAccess(MM_EnvironmentBase *env)
 {

@@ -31,6 +31,7 @@
 #if defined(OMR_GC_MODRON_CONCURRENT_MARK)
 
 #include "ConcurrentGC.hpp"
+#include "ConcurrentMarkingSATBDelegate.hpp"
 
 
 /**
@@ -45,13 +46,15 @@ class MM_ConcurrentGCSATB : public MM_ConcurrentGC
 private:
 	uintptr_t _bytesToTrace;
 	uintptr_t _traceTarget;
+	bool _rootsRequiredSTW;
+
+	MM_ConcurrentMarkingSATBDelegate _concurrentSATBDelegate;
 public:
-	
 	/*
 	 * Function members
 	 */
-
 protected:
+	bool initialize(MM_EnvironmentBase *env);
 	void tearDown(MM_EnvironmentBase *env);
 
 	virtual uintptr_t doConcurrentTrace(MM_EnvironmentBase *env, MM_AllocateDescription *allocDescription, uintptr_t sizeToTrace, MM_MemorySubSpace *subspace, bool tlhAllocation);
@@ -59,20 +62,23 @@ protected:
 
 	virtual void reportConcurrentCollectionStart(MM_EnvironmentBase *env);
 	virtual void reportConcurrentHalted(MM_EnvironmentBase *env);
-	virtual void signalThreadsToActivateWriteBarrierInternal(MM_EnvironmentBase *env);
+	virtual void setupForConcurrent(MM_EnvironmentBase *env);
 	virtual void finalConcurrentPrecollect(MM_EnvironmentBase *env) {};
 	virtual void tuneToHeap(MM_EnvironmentBase *env);
-	virtual void preCompleteConcurrentCycle(MM_EnvironmentBase *env);
+	virtual void completeConcurrentTracing(MM_EnvironmentBase *env, uintptr_t executionModeAtGC);
 	virtual void adjustTraceTarget();
 	virtual uintptr_t getTraceTarget() { return _traceTarget; };
 #if defined(OMR_GC_MODRON_SCAVENGER)
 	virtual void oldToOldReferenceCreated(MM_EnvironmentBase *env, omrobjectptr_t objectPtr);
 #endif /* OMR_GC_MODRON_SCAVENGER */
-
+	virtual bool rootsRequired() { return _rootsRequiredSTW; };
+	virtual void internalPostCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *subSpace);
 public:
 	virtual uintptr_t getVMStateID() { return OMRVMSTATE_GC_COLLECTOR_CONCURRENTGC; };
 	static MM_ConcurrentGCSATB *newInstance(MM_EnvironmentBase *env);
 	virtual void kill(MM_EnvironmentBase *env);
+
+	MM_ConcurrentMarkingSATBDelegate *getSATBDelegate() { return &_concurrentSATBDelegate; };
 
 	virtual void J9ConcurrentWriteBarrierStoreHandler(MM_EnvironmentBase *env, omrobjectptr_t destinationObject, omrobjectptr_t storedObject);
 	virtual void J9ConcurrentWriteBarrierBatchStoreHandler(MM_EnvironmentBase *env, omrobjectptr_t destinationObject);
@@ -81,6 +87,7 @@ public:
 		: MM_ConcurrentGC(env)
 		,_bytesToTrace(0)
 		,_traceTarget(0)
+		,_rootsRequiredSTW(true)
 		{
 			_typeId = __FUNCTION__;
 		}

@@ -90,6 +90,11 @@ MM_EnvironmentBase::initialize(MM_GCExtensionsBase *extensions)
 	setAllocationColor(extensions->newThreadAllocationColor);
 
 	if (extensions->isStandardGC() || extensions->isVLHGC()) {
+
+		if (extensions->newThreadAllocationColor == GC_MARK) {
+			setThreadScanned(true);
+		}
+
 		/* pass veryLargeObjectThreshold = 0 to initialize limited size of veryLargeEntryPool for thread (to reduce footprint), 
 		 * but if the threshold is bigger than maxHeap size, we would pass orignal threshold to indicate no veryLargeEntryPool needed 
 		 */

@@ -364,8 +364,15 @@ MM_MarkingScheme::markLiveObjectsRoots(MM_EnvironmentBase *env)
 }
 
 void
-MM_MarkingScheme::markLiveObjectsScan(MM_EnvironmentBase *env)
+MM_MarkingScheme::markLiveObjectsScan(MM_EnvironmentBase *env, bool processLists)
 {
+	/* This is usually done prior to scanning, during roots. However, we may skip Roots in STW for a
+	 * Concurrent SATB configuration, so start processing lists now.
+	 */
+	if (processLists) {
+		_delegate.startUnfinalizedAndOwnableSyncProcessing(env);
+	}
+
 	completeMarking(env);
 }
 

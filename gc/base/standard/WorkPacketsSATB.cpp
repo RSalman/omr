@@ -232,4 +232,17 @@ MM_WorkPacketsSATB::getInputPacketFromOverflow(MM_EnvironmentBase *env)
 	return NULL;
 }
 
+void
+MM_WorkPacketsSATB::resetAllPackets(MM_EnvironmentBase *env)
+{
+	MM_Packet *packet;
+
+	while(NULL != (packet = getPacket(env, &_inUseBarrierPacketList))) {
+		packet->resetData(env);
+		putPacket(env, packet);
+	}
+
+	MM_WorkPackets::resetAllPackets(env);
+}
+
 #endif /* OMR_GC_REALTIME */

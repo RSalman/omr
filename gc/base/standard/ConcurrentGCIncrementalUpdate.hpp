@@ -138,7 +138,7 @@ protected:
 	virtual void finalConcurrentPrecollect(MM_EnvironmentBase *env);
 	virtual void tuneToHeap(MM_EnvironmentBase *env);
 	virtual void updateTuningStatisticsInternal(MM_EnvironmentBase *env);
-	virtual void signalThreadsToActivateWriteBarrierInternal(MM_EnvironmentBase *env);
+	virtual void setupForConcurrent(MM_EnvironmentBase *env);
 	virtual void adjustTraceTarget();
 	virtual void resetConcurrentParameters(MM_EnvironmentBase *env);
 
@@ -153,6 +153,8 @@ protected:
 			return _traceTargetPass1;
 		}
 	}
+
+	virtual void completeConcurrentTracing(MM_EnvironmentBase *env, uintptr_t executionModeAtGC);
 public:
 	virtual uintptr_t getVMStateID() { return OMRVMSTATE_GC_COLLECTOR_CONCURRENTGC; };
 	virtual bool heapAddRange(MM_EnvironmentBase *env, MM_MemorySubSpace *subspace, uintptr_t size, void *lowAddress, void *highAddress);

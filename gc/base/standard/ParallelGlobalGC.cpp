@@ -952,7 +952,7 @@ MM_ParallelGlobalGC::markAll(MM_EnvironmentBase *env, bool initMarkMap)
 	}
 
 	/* run the mark */
-	MM_ParallelMarkTask markTask(env, _dispatcher, _markingScheme, initMarkMap, env->_cycleState);
+	MM_ParallelMarkTask markTask(env, _dispatcher, _markingScheme, initMarkMap, env->_cycleState, !rootsRequired());
 	_dispatcher->run(env, &markTask);
 	
 	Assert_MM_true(_markingScheme->getWorkPackets()->isAllPacketsEmpty());
@@ -1012,6 +1012,7 @@ MM_ParallelGlobalGC::mainThreadRestartAllocationCaches(MM_EnvironmentBase *env)
 		 * into the STW thread scan phase.
 		 */  
 		walkEnv->setThreadScanned(false);
+		walkEnv->setAllocationColor(GC_UNMARK);
 
 		walkEnv->_objectAllocationInterface->restartCache(env);
 	}

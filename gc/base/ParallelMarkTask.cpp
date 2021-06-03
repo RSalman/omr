@@ -46,8 +46,15 @@ MM_ParallelMarkTask::run(MM_EnvironmentBase *env)
 	env->_workStack.prepareForWork(env, (MM_WorkPackets *)(_markingScheme->getWorkPackets()));
 
 	_markingScheme->markLiveObjectsInit(env, _initMarkMap);
-	_markingScheme->markLiveObjectsRoots(env);
-	_markingScheme->markLiveObjectsScan(env);
+
+	/* Roots should be skiped for Concurrent SATB (if sufficient progress is made). SATB will use this task to complete marking
+	 * and do clearables during final STW.
+	 */
+	if (!_skipRoots) {
+		_markingScheme->markLiveObjectsRoots(env);
+	}
+
+	_markingScheme->markLiveObjectsScan(env, _skipRoots);
 	_markingScheme->markLiveObjectsComplete(env);
 
 	env->_workStack.flush(env);

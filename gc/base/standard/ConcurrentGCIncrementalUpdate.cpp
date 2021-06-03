@@ -42,6 +42,7 @@
 #include "AllocateDescription.hpp"
 #include "ConcurrentGCIncrementalUpdate.hpp"
 #include "ConcurrentFinalCleanCardsTask.hpp"
+#include "ConcurrentCompleteTracingTask.hpp"
 #include "ConcurrentCardTableForWC.hpp"
 #include "ParallelDispatcher.hpp"
 #include "WorkPacketsConcurrent.hpp"
@@ -689,6 +690,29 @@ MM_ConcurrentGCIncrementalUpdate::adjustTraceTarget()
 }
 
 void
+MM_ConcurrentGCIncrementalUpdate::completeConcurrentTracing(MM_EnvironmentBase *env, uintptr_t executionModeAtGC) {
+	if (CONCURRENT_FINAL_COLLECTION > executionModeAtGC) {
+		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
+
+		reportConcurrentHalted(env);
+
+		if (!_markingScheme->getWorkPackets()->tracingExhausted()) {
+
+			reportConcurrentCompleteTracingStart(env);
+			uint64_t startTime = omrtime_hires_clock();
+			/* Get assistance from all worker threads to complete processing of any remaining work packets.
+			 * In the event of work stack overflow we will just dirty cards which will get processed during
+			 * final card cleaning.
+			 */
+			MM_ConcurrentCompleteTracingTask completeTracingTask(env, _dispatcher, this, env->_cycleState);
+			_dispatcher->run(env, &completeTracingTask);
+
+			reportConcurrentCompleteTracingEnd(env, omrtime_hires_clock() - startTime);
+		}
+	}
+}
+
+void
 MM_ConcurrentGCIncrementalUpdate::updateTuningStatisticsInternal(MM_EnvironmentBase *env)
 {
 	uintptr_t totalTraced = 0;
@@ -805,8 +829,9 @@ MM_ConcurrentGCIncrementalUpdate::kickoffCardCleaning(MM_EnvironmentBase *env, C
 }
 
 void
-MM_ConcurrentGCIncrementalUpdate::signalThreadsToActivateWriteBarrierInternal(MM_EnvironmentBase *env)
+MM_ConcurrentGCIncrementalUpdate::setupForConcurrent(MM_EnvironmentBase *env)
 {
+	_concurrentDelegate.signalThreadsToActivateWriteBarrier(env);
 	_stats.switchExecutionMode(CONCURRENT_INIT_COMPLETE, CONCURRENT_ROOT_TRACING);
 }
 
