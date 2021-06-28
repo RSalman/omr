@@ -42,8 +42,6 @@
 #include "AllocateDescription.hpp"
 #include "AtomicOperations.hpp"
 #include "CollectorLanguageInterfaceImpl.hpp"
-#include "ConcurrentCardTable.hpp"
-#include "ConcurrentCardTableForWC.hpp"
 #include "ConcurrentGC.hpp"
 #include "ConcurrentCompleteTracingTask.hpp"
 #include "ConcurrentClearNewMarkBitsTask.hpp"
@@ -93,34 +91,21 @@ typedef struct ConHelperThreadInfo {
 extern "C" {
 
 /**
- * Concurrent mark write barrier
- * External entry point for write barrier.
- *
- * @param destinationObject Address of object containing modified reference
- * @param storedObject The value of the modified reference
+ * @deprecated Caller should make use of new concurrentPostWriteBarrierStore API
  */
 void
 J9ConcurrentWriteBarrierStore(OMR_VMThread *vmThread, omrobjectptr_t destinationObject, omrobjectptr_t storedObject)
 {
-	MM_EnvironmentBase *env = MM_EnvironmentBase::getEnvironment(vmThread);
-	MM_GCExtensionsBase *extensions = env->getExtensions();
-
-	((MM_ConcurrentGC *)extensions->getGlobalCollector())->J9ConcurrentWriteBarrierStoreHandler(env, destinationObject, storedObject);
+	concurrentPostWriteBarrierStore(vmThread, destinationObject);
 }
 
 /**
- * Concurrent mark write barrier - batch store
- * External entry point for write barrier.
- *
- * @param destinationObject Address of object containing modified reference
+ * @deprecated Caller should make use of new concurrentPostWriteBarrierStore API
  */
 void
 J9ConcurrentWriteBarrierBatchStore(OMR_VMThread *vmThread, omrobjectptr_t destinationObject)
 {
-	MM_EnvironmentBase *env = MM_EnvironmentBase::getEnvironment(vmThread);
-	MM_GCExtensionsBase *extensions = env->getExtensions();
-
-	((MM_ConcurrentGC *)extensions->getGlobalCollector())->J9ConcurrentWriteBarrierBatchStoreHandler(env, destinationObject);
+	concurrentPostWriteBarrierStore(vmThread, destinationObject);
 }
 
 /**
@@ -351,7 +336,8 @@ MM_ConcurrentGC::reportConcurrentRememberedSetScanEnd(MM_EnvironmentBase *env, u
 	);
 }
 
-void MM_ConcurrentGC::preConcurrentInitializeStatsAndReport(MM_EnvironmentBase *env, MM_ConcurrentPhaseStatsBase *stats)
+void
+MM_ConcurrentGC::preConcurrentInitializeStatsAndReport(MM_EnvironmentBase *env, MM_ConcurrentPhaseStatsBase *stats)
 {
 	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 	_concurrentPhaseStats._cycleID = _concurrentCycleState._verboseContextID;
@@ -364,11 +350,11 @@ void MM_ConcurrentGC::preConcurrentInitializeStatsAndReport(MM_EnvironmentBase *
 			&_concurrentPhaseStats);
 }
 
-void MM_ConcurrentGC::postConcurrentUpdateStatsAndReport(MM_EnvironmentBase *env, MM_ConcurrentPhaseStatsBase *stats, UDATA bytesConcurrentlyScanned)
+void
+MM_ConcurrentGC::postConcurrentUpdateStatsAndReport(MM_EnvironmentBase *env, MM_ConcurrentPhaseStatsBase *stats, UDATA bytesConcurrentlyScanned)
 {
 	OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 	_concurrentPhaseStats._cycleID = _concurrentCycleState._verboseContextID;
-	_concurrentPhaseStats._cardTableStats = _cardTable->getCardTableStats();
 	_concurrentPhaseStats._collectionStats = &_stats;
 
 	TRIGGER_J9HOOK_MM_PRIVATE_CONCURRENT_PHASE_END(
@@ -380,7 +366,7 @@ void MM_ConcurrentGC::postConcurrentUpdateStatsAndReport(MM_EnvironmentBase *env
 }
 
 /**
- * Aysnc callback routine to signal all threads that CM is active (Activate SATB Barrier or start dirtying cards).
+ * Aysnc callback routine to signal all threads that CM is active (Activate SATB Barrier or Start Dirtying Cards).
  *
  * @note Caller assumed to be at a safe point
  *
@@ -407,7 +393,7 @@ MM_ConcurrentGC::kill(MM_EnvironmentBase *env)
 
 /**
  * Initialize a new ConcurrentGC object.
- * Instantiate card table and concurrent RAS objects(if required) and initialize all
+ * Instantiate concurrent RAS objects(if required) and initialize all
  * monitors required by concurrent. Allocate and initialize the concurrent helper thread
  * table.
  *
@@ -511,7 +497,8 @@ error_no_memory:
 }
 
 /**
- * Teardown a ConcurrentGC object Destroy referenced objects and release
+ * Teardown a ConcurrentGC object
+ * Destroy referenced objects and release
  * all allocated storage before ConcurrentGC object is freed.
  */
 void
@@ -539,41 +526,13 @@ MM_ConcurrentGC::tearDown(MM_EnvironmentBase *env)
 }
 
 /**
- * Interpolate value of a tuning factor.
- * Interpolate the value of a tuning factor within a given range based on
- * a given concurrent trace rate.
- *
- * @param val1 Lower bound of range for factor if trace rate <= 8
- * @param val8 Upper bound of range if trace rate <= 8; lower bound if > 8
- * @param val10 Upper bound of range if trace rate > 8
- * @traceRate The concurrent trace rate
- *
- * @return The value of the factor to be used for given trace rate
- */
-float
-MM_ConcurrentGC::interpolateInRange(float val1, float val8, float val10, uintptr_t traceRate)
-{
-	float ret;
-
-	if (traceRate > 8) {
-		ret = (float)(val8 + ( ((val10 - val8) / 2.0) * (traceRate-8) ) );
-	} else {
-		ret = (float)(val1 + ( ((val8 - val1)  / 7.0) * (traceRate-1) ) );
-	}
-
-	return ret;
-}
-
-/**
  * Determine concurrent initialization work
  * Populate the _initRanges structure with the areas of storage which need
- * initializing at each concurrent kickoff. Currently mark bits and card table.
+ * initializing at each concurrent kickoff. Currently mark bits (and card table for Incremental CM).
  * For mark bits we create one entry in _initRanges for each segment of heap.
  * The mark bits for areas which are concurrently collectable, eg OLD,  will be
  * set OFF; but all mark bits areas not concurrent collectable, eg NEW, will be
  * set ON so that concurrent does not trace into these areas.
- * For the card table we create one entry for each segment of heap which is concurrently
- * collectable. All associated cards in card table will be set to clean (0x00).
  */
 void
 MM_ConcurrentGC::determineInitWork(MM_EnvironmentBase *env)
@@ -611,13 +570,7 @@ MM_ConcurrentGC::determineInitWork(MM_EnvironmentBase *env)
 				i++;
 			}
 
-			/* If the segment is for a concurrently collectable subspace we will
-			 * have some cards to clear too */
-			if ((subspace->isConcurrentCollectable()) && (_extensions->configuration->isIncrementalUpdateBarrierEnabled())) {
-				_numInitRanges += 2; /* We will have some cards to clean as well */
-			} else {
-				_numInitRanges += 1;
-			}
+			_numInitRanges += numberOfInitRanages(subspace);
 		}
 
 		/* Any room left ? */
@@ -641,21 +594,8 @@ MM_ConcurrentGC::determineInitWork(MM_EnvironmentBase *env)
 				_numPhysicalInitRanges = _numInitRanges;
 			}
 		} else {
-			if (_extensions->configuration->isIncrementalUpdateBarrierEnabled()) {
-				/* Add init ranges for all card table ranges for concurrently collectable segments */
-				for (I_32 x=i-1; x >= 0; x--) {
-					if ((_initRanges[x].type == MARK_BITS) && ((_initRanges[x].subspace)->isConcurrentCollectable())) {
-						_initRanges[i].base = _initRanges[x].base;
-						_initRanges[i].top = _initRanges[x].top;
-						_initRanges[i].current = _initRanges[i].base;
-						_initRanges[i].subspace = _initRanges[x].subspace;
-						_initRanges[i].initBytes = ((MM_ConcurrentCardTable *)_cardTable)->cardBytesForHeapRange(env,_initRanges[i].base,_initRanges[i].top);
-						_initRanges[i].type = CARD_TABLE;
-						_initRanges[i].chunkSize = INIT_CHUNK_SIZE * CARD_SIZE;
-						i++;
-					}
-				}
-			}
+			determineInitWorkInternal(env, i);
+
 			_nextInitRange = 0;
 			initDone = true;
 		}
@@ -842,7 +782,7 @@ MM_ConcurrentGC::switchConHelperRequest(ConHelperRequest from, ConHelperRequest 
 	return result;
 }
 
-MMINLINE MM_ConcurrentGC::ConHelperRequest
+MM_ConcurrentGC::ConHelperRequest
 MM_ConcurrentGC::getConHelperRequest(MM_EnvironmentBase *env)
 {
 	ConHelperRequest result;
@@ -914,23 +854,8 @@ MM_ConcurrentGC::conHelperEntryPoint(OMR_VMThread *omrThread, uintptr_t workerID
 			request = getConHelperRequest(env);
 		}
 
-		spinLimiter.reset();
-
-		/* clean cards (This will be skipped for SATB as the CONCURRENT_CLEAN_TRACE mode is unreachable) */
-		while ((CONCURRENT_HELPER_MARK == request)
-				&& (CONCURRENT_CLEAN_TRACE == _stats.getExecutionMode())
-				&& _cardTable->isCardCleaningStarted()
-				&& !_cardTable->isCardCleaningComplete()
-				&& spinLimiter.spin()) {
-			if (cleanCards(env, false, _conHelperCleanSize, &sizeTraced, false)) {
-				if (sizeTraced > 0 ) {
-					_stats.incConHelperCardCleanCount(sizeTraced);
-					totalScanned += sizeTraced;
-					spinLimiter.reset();
-				}
-			}
-			request = getConHelperRequest(env);
-		}
+		/* Collector specific Con Helper Work */
+		conHelperDoWorkInternal(env, &request, &spinLimiter, &totalScanned);
 
 		if (CONCURRENT_HELPER_MARK == request) {
 			request = switchConHelperRequest(CONCURRENT_HELPER_MARK, CONCURRENT_HELPER_WAIT);
@@ -1101,8 +1026,6 @@ MM_ConcurrentGC::resumeConHelperThreads(MM_EnvironmentBase *env)
  * if the heap changes in size to predict how much of new heap will need to be
  * traced before next collection.
  *
- * Also, reset the card cleaning factors based on cards we cleaned this cycle.
- *
  */
 void
 MM_ConcurrentGC::updateTuningStatistics(MM_EnvironmentBase *env)
@@ -1203,13 +1126,12 @@ MM_ConcurrentGC::calculateTraceSize(MM_EnvironmentBase *env, MM_AllocateDescript
 	 * that all work is assigned to mutators by the time free space drops to
 	 * _kickoffThresholdBuffer.
 	 */
-	 remainingFree = (remainingFree > _kickoffThresholdBuffer) ? remainingFree - _kickoffThresholdBuffer : 0;
+	remainingFree = (remainingFree > _kickoffThresholdBuffer) ? remainingFree - _kickoffThresholdBuffer : 0;
 
 	/* Calculate the size to trace for this alloc based on the
 	 * trace target and how much work has been already completed.
 	 */
-	workCompleteSoFar = (_stats.getTraceSizeCount() + _stats.getCardCleanCount() +
-						 _stats.getConHelperTraceSizeCount() + _stats.getConHelperCardCleanCount());
+	workCompleteSoFar = workCompleted();
 
 	/* Calculate how much work we need to get through */
 	traceTarget = getTraceTarget();
@@ -1428,12 +1350,12 @@ MM_ConcurrentGC::periodicalTuning(MM_EnvironmentBase *env, uintptr_t freeSize)
         /* This thread first to update for this interval so calculate
          * total traced so far
          */
-		uintptr_t totalTraced = _stats.getTraceSizeCount() + _stats.getCardCleanCount();
+		uintptr_t totalTraced = getMutatorTotalTraced();
 		uintptr_t freeSpaceUsed = _lastFreeSize - freeSize;
 
 		/* Update concurrent helper trace rate if we have any */
 		if (_conHelpersStarted > 0) {
-			uintptr_t conTraced = _stats.getConHelperTraceSizeCount() +  _stats.getConHelperCardCleanCount();
+			uintptr_t conTraced = getConHelperTotalTraced();
 			newConHelperRate =  (float)(conTraced - _lastConHelperTraceSizeCount) / (float) (freeSpaceUsed);
 			_lastConHelperTraceSizeCount = conTraced;
 			_alloc2ConHelperTraceRate = MM_Math::weightedAverage(_alloc2ConHelperTraceRate,
@@ -1696,8 +1618,8 @@ MM_ConcurrentGC::signalThreadsToActivateWriteBarrier(MM_EnvironmentBase *env)
 
 			_concurrentPhaseStats.clear();
 			preConcurrentInitializeStatsAndReport(env);
-			_concurrentDelegate.signalThreadsToActivateWriteBarrier(env);
-			signalThreadsToActivateWriteBarrierInternal(env);
+
+			setupForConcurrent(env);
 
 			/* Cancel any outstanding call backs on other threads as this thread has done the necessary work */
 			_callback->cancelCallback(env);
@@ -1847,8 +1769,8 @@ MM_ConcurrentGC::completeConcurrentSweepForKickoff(MM_EnvironmentBase *env)
 /**
  *
  * Do some initialization work.
- * Mutator pays its allocation tax by initailizing sections of mark map and/or
- * card table until tax paid or no more sections to initailize.
+ * Mutator pays its allocation tax by initailizing sections of mark map and (/or
+ * card table for Incremental CM) until tax paid or no more sections to initailize.
  *
  * @param initToDo  The amount of initialization work, in bytes, this mutator has
  * been taxed to do.
@@ -1859,9 +1781,6 @@ uintptr_t
 MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t initToDo)
 {
 	uintptr_t initDone = 0;
-	void *from, *to;
-	InitType type;
-	bool concurrentCollectable;
 
 	omrthread_monitor_enter(_initWorkMonitor);
 	if (_stats.getExecutionMode() != CONCURRENT_INIT_RUNNING) {
@@ -1874,9 +1793,7 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 		if (!_initSetupDone ) {
 			_markingScheme->getWorkPackets()->reset(env);
 			_markingScheme->workerSetupForGC(env);
-			if(NULL != _cardTable) {
-				((MM_ConcurrentCardTable *)_cardTable)->initializeCardCleaning(env);
-			}
+			initalizeConcurrentStructures(env);
 			_initSetupDone = true;
 		}
 
@@ -1894,39 +1811,7 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 		return 0;
 	}
 
-	while(initToDo > initDone) {
-
-		/* If another thread is waiting for exclusive VM access, possibly
-		 * to collect, get out quick so as not to hold things up
-		 */
-		if(env->isExclusiveAccessRequestWaiting()) {
-			break;
-		}
-
-		if(getInitRange(env, &from, &to, &type, &concurrentCollectable)) {
-			switch(type) {
-			case MARK_BITS:
-				if (concurrentCollectable) {
-					initDone += _markingScheme->setMarkBitsInRange(env,from,to,true);
-				} else {
-					initDone += _markingScheme->setMarkBitsInRange(env,from,to,false);
-				}
-				break;
-			case CARD_TABLE:
-				if(NULL != _cardTable) {
-					initDone += ((MM_ConcurrentCardTable *)_cardTable)->clearCardsInRange(env,from,to);
-				}
-				break;
-			default:
-				assume0(0);
-			}
-		} else {
-			/* All init ranges taken so exit and wait below for init
-			 * to complete before returning to caller
-			 */
-			break;
-		}
-	}
+	initDone += doConcurrentInitializationInternal(env, initToDo);
 
 	omrthread_monitor_enter(_initWorkMonitor);
 	_initializers--;
@@ -1967,9 +1852,46 @@ MM_ConcurrentGC::doConcurrentInitialization(MM_EnvironmentBase *env, uintptr_t i
 	return initDone;
 }
 
+uintptr_t
+MM_ConcurrentGC::doConcurrentInitializationInternal(MM_EnvironmentBase *env, uintptr_t initToDo)
+{
+	void *from, *to;
+	InitType type;
+	bool concurrentCollectable;
+
+	uintptr_t initDone = 0;
+
+	while(initToDo > initDone) {
+
+		/* If another thread is waiting for exclusive VM access, possibly
+		 * to collect, get out quick so as not to hold things up
+		 */
+		if(env->isExclusiveAccessRequestWaiting()) {
+			break;
+		}
+
+		if(getInitRange(env, &from, &to, &type, &concurrentCollectable)) {
+			Assert_MM_true(MARK_BITS == type);
+
+			if (concurrentCollectable) {
+				initDone += _markingScheme->setMarkBitsInRange(env,from,to,true);
+			} else {
+				initDone += _markingScheme->setMarkBitsInRange(env,from,to,false);
+			}
+		} else {
+			/* All init ranges taken so exit and wait below for init
+			 * to complete before returning to caller
+			 */
+			break;
+		}
+	}
+
+	return initDone;
+}
+
 /**
  * Initiate final collection
- * Concurrent tracing has completed all tracing and card cleaning work so its
+ * Concurrent tracing has completed all concurrent work so its
  * now time to request a global collection.
  *
  * @return TRUE if final collection actually requested; FALSE otherwise
@@ -1979,11 +1901,6 @@ MM_ConcurrentGC::concurrentFinalCollection(MM_EnvironmentBase *env, MM_MemorySub
 {
 	/* Switch to FINAL_COLLECTION; if we fail another thread beat us to it so just return */
 	if	(_stats.switchExecutionMode(CONCURRENT_EXHAUSTED, CONCURRENT_FINAL_COLLECTION)) {
-#if defined(OMR_GC_REALTIME)
-		if(_extensions->configuration->isSnapshotAtTheBeginningBarrierEnabled()) {
-			_extensions->sATBBarrierRememberedSet->preserveGlobalFragmentIndex(env);
-		}
-#endif /* defined(OMR_GC_REALTIME) */
 		OMRPORT_ACCESS_FROM_OMRPORT(env->getPortLibrary());
 		_concurrentPhaseStats._endTime = omrtime_hires_clock();
 		postConcurrentUpdateStatsAndReport(env);
@@ -2033,7 +1950,7 @@ MM_ConcurrentGC::clearConcurrentWorkStackOverflow()
 /**
  * By the time we are called all tracing activity should be stopped and any concurrent
  * helper threads should have parked themselves. Before the final collection can take
- * place we need to ensure that all objects in dirty cards are retraced and the remembered
+ * place we need to ensure that all objects in dirty cards are retraced (only for an incremental CM config) and the remembered
  * set is processed.
  *
  * @see MM_ParallelGlobalGC::internalPreCollect()
@@ -2122,9 +2039,8 @@ MM_ConcurrentGC::internalPreCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *
 		reportGlobalGCIncrementStart(env);
 
 		/* Switch the executionMode to OFF to complete the STW collection */
-		if (_stats.switchExecutionMode(executionModeAtGC, CONCURRENT_OFF)) {
-			preCompleteConcurrentCycle(env);
-		}
+		_stats.switchExecutionMode(executionModeAtGC, CONCURRENT_OFF);
+
 #if defined(OMR_GC_MODRON_SCAVENGER)
 		_extensions->setConcurrentGlobalGCInProgress(false);
 #endif
@@ -2134,23 +2050,7 @@ MM_ConcurrentGC::internalPreCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *
 		 */
 		_initializeMarkMap = false;
 
-		if (CONCURRENT_FINAL_COLLECTION > executionModeAtGC) {
-			reportConcurrentHalted(env);
-
-			if (!_markingScheme->getWorkPackets()->tracingExhausted()) {
-
-				reportConcurrentCompleteTracingStart(env);
-				uint64_t startTime = omrtime_hires_clock();
-				/* Get assistance from all worker threads to complete processing of any remaining work packets.
-				 * In the event of work stack overflow we will just dirty cards which will get processed during
-				 * final card cleaning.
-				 */
-				MM_ConcurrentCompleteTracingTask completeTracingTask(env, _dispatcher, this, env->_cycleState);
-				_dispatcher->run(env, &completeTracingTask);
-
-				reportConcurrentCompleteTracingEnd(env, omrtime_hires_clock() - startTime);
-			}
-		}
+		completeConcurrentTracing(env, executionModeAtGC);
 
 #if defined(OMR_GC_MODRON_SCAVENGER)
 		if(_extensions->scavengerEnabled) {
@@ -2247,12 +2147,6 @@ MM_ConcurrentGC::internalPostCollect(MM_EnvironmentBase *env, MM_MemorySubSpace 
 	 /* Reset concurrent work stack overflow flags for next cycle */
 	clearConcurrentWorkStackOverflow();
 
-	/* If we flushed all the TLH's correctly in GC the TLH mark bits should be
-	 * all OFF
-	 */
-	if (_extensions->configuration->isIncrementalUpdateBarrierEnabled()) {
-		assume(_cardTable->isTLHMarkBitsEmpty(env),"TLH mark map not empty");
-	}
 	/* Re tune for next concurrent cycle if we have had a heap resize or we got far enough
 	 * last time. We only re-tune on a system GC in the event of a heap resize.
 	 */
@@ -2265,7 +2159,7 @@ MM_ConcurrentGC::internalPostCollect(MM_EnvironmentBase *env, MM_MemorySubSpace 
 	_stats.clearKickoffReason();
 
 	if (_extensions->optimizeConcurrentWB) {
-		/* Reset vmThread flag so mutators don't dirty cards until next concurrent KO */
+		/* Reset vmThread CM Active flags/barriers */
 		if (_stats.getExecutionModeAtGC() > CONCURRENT_INIT_RUNNING) {
 			_concurrentDelegate.signalThreadsToDeactivateWriteBarrier(env);
 		}
@@ -2405,10 +2299,7 @@ MM_ConcurrentGC::heapRemoveRange(MM_EnvironmentBase *env, MM_MemorySubSpace *sub
 	/* Contract any superclass structures */
 	bool result = MM_ParallelGlobalGC::heapRemoveRange(env, subspace, size, lowAddress, highAddress, lowValidAddress, highValidAddress);
 
-	/* ...and then contract the card table */
-	if (_extensions->configuration->isIncrementalUpdateBarrierEnabled()) {
-		result = result && ((MM_ConcurrentCardTable *)_cardTable)->heapRemoveRange(env, subspace, size, lowAddress, highAddress, lowValidAddress, highValidAddress);
-	}
+	result = result && contractInternalConcurrentStructures(env, subspace, size, lowAddress, highAddress, lowValidAddress, highValidAddress);
 
 	_heapAlloc = (void *)_extensions->heap->getHeapTop();
 
@@ -2567,7 +2458,7 @@ MM_ConcurrentGC::completeTracing(MM_EnvironmentBase *env)
 
 #if defined(OMR_GC_MODRON_SCAVENGER)
 /**
- * Scan remembered set looking for any MARKED objects which are not in dirty cards.
+ * Scan remembered set looking for any MARKED objects (which are not in dirty cards for Incremental CM).
  * A marked object which is not in a dirty card needs rescanning now for any references
  * to the nursery which will not have been traced by concurrent mark
  *
@@ -2586,9 +2477,6 @@ MM_ConcurrentGC::scanRememberedSet(MM_EnvironmentBase *env)
 	env->_markStats.clear();
 
 	GC_SublistIterator rememberedSetIterator(&_extensions->rememberedSet);
-
-	bool canDeferProcessing = _extensions->configuration->isIncrementalUpdateBarrierEnabled() ? true : false;
-
 	while((puddle = rememberedSetIterator.nextList()) != NULL) {
 		if(J9MODRON_HANDLE_NEXT_WORK_UNIT(env)) {
 			GC_SublistSlotIterator rememberedSetSlotIterator(puddle);
@@ -2601,7 +2489,7 @@ MM_ConcurrentGC::scanRememberedSet(MM_EnvironmentBase *env)
 				if((objectPtr >= _heapBase)
 					&& (objectPtr <  _heapAlloc)
 					&& _markingScheme->isMarkedOutline(objectPtr)
-					&& (canDeferProcessing ? (!_cardTable->isObjectInDirtyCardNoCheck(env,objectPtr)) : true)) {
+					&& !canSkipObjectRSScan(env, objectPtr)) {
 						/* VMDESIGN 2048 -- due to barrier elision optimizations, the JIT may not have dirtied
 						 * cards for some objects in the remembered set. Therefore we may discover references
 						 * to both nursery and tenure objects while scanning remembered objects.

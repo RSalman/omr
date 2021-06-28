@@ -44,15 +44,6 @@
 #include "RememberedSetSATB.hpp"
 #include "WorkPacketsConcurrent.hpp"
 
-
-void
-MM_ConcurrentGCSATB::J9ConcurrentWriteBarrierStoreHandler(MM_EnvironmentBase *env, omrobjectptr_t destinationObject, omrobjectptr_t storedObject)
-{ /* To be implemented */ }
-
-void
-MM_ConcurrentGCSATB::J9ConcurrentWriteBarrierBatchStoreHandler(MM_EnvironmentBase *env, omrobjectptr_t destinationObject)
-{ /* To be implemented */ }
-
 /**
  * Create new instance of ConcurrentGCIncrementalUpdate object.
  *
@@ -186,7 +177,6 @@ MM_ConcurrentGCSATB::oldToOldReferenceCreated(MM_EnvironmentBase *env, omrobject
 {}
 #endif /* OMR_GC_MODRON_SCAVENGER */
 
-
 /**
  * Tune the concurrent adaptive parameters.
  * Using historical data attempt to predict how much work (tracing)
@@ -303,7 +293,6 @@ MM_ConcurrentGCSATB::tuneToHeap(MM_EnvironmentBase *env)
 	Trc_MM_ConcurrentGC_tuneToHeap_Exit2(env->getLanguageVMThread(), _stats.getTraceSizeTarget(), _stats.getInitWorkRequired(), _stats.getKickoffThreshold());
 }
 
-
 /**
  * Adjust the current trace target after heap change.
  * The heap has been reconfigured (i.e expanded or contracted) midway through a
@@ -323,7 +312,7 @@ MM_ConcurrentGCSATB::adjustTraceTarget()
 }
 
 void
-MM_ConcurrentGCSATB::signalThreadsToActivateWriteBarrierInternal(MM_EnvironmentBase *env)
+MM_ConcurrentGCSATB::setupForConcurrent(MM_EnvironmentBase *env)
 {
 #if defined(OMR_GC_REALTIME)
 	_extensions->sATBBarrierRememberedSet->restoreGlobalFragmentIndex(env);
@@ -342,13 +331,14 @@ MM_ConcurrentGCSATB::doConcurrentTrace(MM_EnvironmentBase *env,
 }
 
 void
-MM_ConcurrentGCSATB::preCompleteConcurrentCycle(MM_EnvironmentBase *env)
+MM_ConcurrentGCSATB::completeConcurrentTracing(MM_EnvironmentBase *env, uintptr_t executionModeAtGC)
 {
 #if defined(OMR_GC_REALTIME)
 	if (((MM_WorkPacketsSATB *)_markingScheme->getWorkPackets())->inUsePacketsAvailable(env)) {
 		((MM_WorkPacketsSATB *)_markingScheme->getWorkPackets())->moveInUseToNonEmpty(env);
 		_extensions->sATBBarrierRememberedSet->flushFragments(env);
 	}
+	_extensions->sATBBarrierRememberedSet->preserveGlobalFragmentIndex(env);
 #endif /* defined(OMR_GC_REALTIME) */
 }
 

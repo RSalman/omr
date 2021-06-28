@@ -31,6 +31,7 @@
 #if defined(OMR_GC_MODRON_CONCURRENT_MARK)
 
 #include "ConcurrentGC.hpp"
+#include "ConcurrentCardTable.hpp"
 
 /**
  * @name Concurrent mark card cleaning factor
@@ -89,6 +90,8 @@ class MM_ConcurrentGCIncrementalUpdate : public MM_ConcurrentGC
 	 * Data members
 	 */
 private:
+	MM_ConcurrentCardTable *_cardTable;	/**< pointer to Cards Table */
+
 	/* Concurrent card cleaning statistics */
 	float _cardCleaningFactorPass1;
 	float _cardCleaningFactorPass2;
@@ -110,17 +113,24 @@ private:
 	bool _pass2Started;
 	bool  _secondCardCleanPass;
 
-	/**
-	 * Creates Concurrent Card Table
-	 * @param env current thread environment
-	 * @return true if table is created
-	 */
 public:
+	/**
+	 * Return reference to Card Table
+	 */
+	MMINLINE MM_ConcurrentCardTable *getCardTable()
+	{
+		return _cardTable;
+	}
 	
 	/*
 	 * Function members
 	 */
 private:
+	/**
+	 * Creates Concurrent Card Table
+	 * @param env current thread environment
+	 * @return true if table is created
+	 */
 	bool createCardTable(MM_EnvironmentBase *env);
 	static void hookCardCleanPass2Start(J9HookInterface** hook, uintptr_t eventNum, void* eventData, void* userData);
 	void recordCardCleanPass2Start(MM_EnvironmentBase *env);
@@ -131,20 +141,37 @@ protected:
 
 	void reportConcurrentFinalCardCleaningStart(MM_EnvironmentBase *env);
 	void reportConcurrentFinalCardCleaningEnd(MM_EnvironmentBase *env, uint64_t duration);
+
 	virtual void reportConcurrentCollectionStart(MM_EnvironmentBase *env);
 	virtual void reportConcurrentHalted(MM_EnvironmentBase *env);
 
 	void kickoffCardCleaning(MM_EnvironmentBase *env, ConcurrentCardCleaningReason reason);
-	virtual void finalConcurrentPrecollect(MM_EnvironmentBase *env);
+	virtual	bool cleanCards(MM_EnvironmentBase *env, bool isMutator, uintptr_t sizeToDo, uintptr_t  *sizeDone, bool threadAtSafePoint);
+
 	virtual void tuneToHeap(MM_EnvironmentBase *env);
 	virtual void updateTuningStatisticsInternal(MM_EnvironmentBase *env);
-	virtual void signalThreadsToActivateWriteBarrierInternal(MM_EnvironmentBase *env);
-	virtual void adjustTraceTarget();
 	virtual void resetConcurrentParameters(MM_EnvironmentBase *env);
+	virtual void adjustTraceTarget();
+
+	virtual void setupForConcurrent(MM_EnvironmentBase *env);
+	virtual void finalConcurrentPrecollect(MM_EnvironmentBase *env);
+	virtual void internalPostCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *subSpace);
+	virtual void completeConcurrentTracing(MM_EnvironmentBase *env, uintptr_t executionModeAtGC);
 
 	virtual uintptr_t doConcurrentTrace(MM_EnvironmentBase *env, MM_AllocateDescription *allocDescription, uintptr_t sizeToTrace, MM_MemorySubSpace *subspace, bool tlhAllocation);
 	virtual uintptr_t localMark(MM_EnvironmentBase *env, uintptr_t sizeToTrace);
-	virtual	bool cleanCards(MM_EnvironmentBase *env, bool isMutator, uintptr_t sizeToDo, uintptr_t  *sizeDone, bool threadAtSafePoint);
+	virtual void conHelperDoWorkInternal(MM_EnvironmentBase *env, ConHelperRequest *request, MM_SpinLimiter *spinLimiter, uintptr_t *totalScanned);
+
+	virtual uint32_t numberOfInitRanages(MM_MemorySubSpace *subspace);
+	virtual void determineInitWorkInternal(MM_EnvironmentBase *env, uint32_t initIndex);
+	virtual void initalizeConcurrentStructures(MM_EnvironmentBase *env);
+	virtual uintptr_t doConcurrentInitializationInternal(MM_EnvironmentBase *env, uintptr_t initToDo);
+
+	virtual bool contractInternalConcurrentStructures(MM_EnvironmentBase *env, MM_MemorySubSpace *subspace, uintptr_t size, void *lowAddress, void *highAddress, void *lowValidAddress, void *highValidAddress);
+
+	virtual bool canSkipObjectRSScan(MM_EnvironmentBase *env, omrobjectptr_t objectPtr);
+
+	virtual void postConcurrentUpdateStatsAndReport(MM_EnvironmentBase *env, MM_ConcurrentPhaseStatsBase *stats = NULL, UDATA bytesConcurrentlyScanned = 0);
 
 	virtual uintptr_t getTraceTarget() {
 		if (_pass2Started) {
@@ -153,11 +180,22 @@ protected:
 			return _traceTargetPass1;
 		}
 	}
+
+	MMINLINE virtual uintptr_t getMutatorTotalTraced() {
+		return (_stats.getTraceSizeCount() + _stats.getCardCleanCount());
+	}
+
+	MMINLINE virtual uintptr_t getConHelperTotalTraced() {
+		return (_stats.getConHelperTraceSizeCount() + _stats.getConHelperCardCleanCount());
+	}
+
+	MMINLINE virtual uintptr_t workCompleted() {
+		return (getMutatorTotalTraced() + getConHelperTotalTraced());
+	}
+
 public:
 	virtual uintptr_t getVMStateID() { return OMRVMSTATE_GC_COLLECTOR_CONCURRENTGC; };
 	virtual bool heapAddRange(MM_EnvironmentBase *env, MM_MemorySubSpace *subspace, uintptr_t size, void *lowAddress, void *highAddress);
-	virtual void J9ConcurrentWriteBarrierStoreHandler(MM_EnvironmentBase *env, omrobjectptr_t destinationObject, omrobjectptr_t storedObject);
-	virtual void J9ConcurrentWriteBarrierBatchStoreHandler(MM_EnvironmentBase *env, omrobjectptr_t destinationObject);
 #if defined(OMR_GC_MODRON_SCAVENGER)
 	virtual void oldToOldReferenceCreated(MM_EnvironmentBase *env, omrobjectptr_t objectPtr);
 #endif /* OMR_GC_MODRON_SCAVENGER */
@@ -168,6 +206,7 @@ public:
 
 	MM_ConcurrentGCIncrementalUpdate(MM_EnvironmentBase *env)
 		: MM_ConcurrentGC(env)
+		,_cardTable(NULL)
 		,_bytesToCleanPass1(0)
 		,_bytesToCleanPass2(0)
 		,_bytesToTracePass1(0)

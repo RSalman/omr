@@ -59,10 +59,10 @@ protected:
 
 	virtual void reportConcurrentCollectionStart(MM_EnvironmentBase *env);
 	virtual void reportConcurrentHalted(MM_EnvironmentBase *env);
-	virtual void signalThreadsToActivateWriteBarrierInternal(MM_EnvironmentBase *env);
+	virtual void setupForConcurrent(MM_EnvironmentBase *env);
 	virtual void finalConcurrentPrecollect(MM_EnvironmentBase *env) {};
 	virtual void tuneToHeap(MM_EnvironmentBase *env);
-	virtual void preCompleteConcurrentCycle(MM_EnvironmentBase *env);
+	virtual void completeConcurrentTracing(MM_EnvironmentBase *env, uintptr_t executionModeAtGC);
 	virtual void adjustTraceTarget();
 	virtual uintptr_t getTraceTarget() { return _traceTarget; };
 #if defined(OMR_GC_MODRON_SCAVENGER)
@@ -73,9 +73,6 @@ public:
 	virtual uintptr_t getVMStateID() { return OMRVMSTATE_GC_COLLECTOR_CONCURRENTGC; };
 	static MM_ConcurrentGCSATB *newInstance(MM_EnvironmentBase *env);
 	virtual void kill(MM_EnvironmentBase *env);
-
-	virtual void J9ConcurrentWriteBarrierStoreHandler(MM_EnvironmentBase *env, omrobjectptr_t destinationObject, omrobjectptr_t storedObject);
-	virtual void J9ConcurrentWriteBarrierBatchStoreHandler(MM_EnvironmentBase *env, omrobjectptr_t destinationObject);
 
 	MM_ConcurrentGCSATB(MM_EnvironmentBase *env)
 		: MM_ConcurrentGC(env)

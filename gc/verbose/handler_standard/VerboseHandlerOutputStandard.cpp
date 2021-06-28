@@ -532,11 +532,13 @@ MM_VerboseHandlerOutputStandard::handleConcurrentMarkEnd(J9HookInterface** hook,
 
 	handleGCOPOuterStanzaStart(env, "trace", stats->_cycleID, duration, deltaTimeSuccess);
 	writer->formatAndOutput(env, 1, "<trace bytesTraced=\"%zu\" workStackOverflowCount=\"%zu\" />", (collectionStats->getConHelperTraceSizeCount() + collectionStats->getTraceSizeCount()), collectionStats->getConcurrentWorkStackOverflowCount());
-	if (0 == stats->_cardTableStats->getConcurrentCleanedCards()) {
-		writer->formatAndOutput(env, 1, "<card-cleaning bytesTraced=\"%zu\" cardsCleaned=\"%zu\" />", (collectionStats->getConHelperCardCleanCount() + collectionStats->getCardCleanCount()), stats->_cardTableStats->getConcurrentCleanedCards());
-	} else {
-		const char* cardCleaningReasonString = getCardCleaningReasonString(collectionStats->getCardCleaningReason());
-		writer->formatAndOutput(env, 1, "<card-cleaning reason=\"%s\" bytesTraced=\"%zu\" cardsCleaned=\"%zu\" />", cardCleaningReasonString, (collectionStats->getConHelperCardCleanCount() + collectionStats->getCardCleanCount()), stats->_cardTableStats->getConcurrentCleanedCards());
+	if (NULL != stats->_cardTableStats) {
+		if (0 == stats->_cardTableStats->getConcurrentCleanedCards()) {
+			writer->formatAndOutput(env, 1, "<card-cleaning bytesTraced=\"%zu\" cardsCleaned=\"%zu\" />", (collectionStats->getConHelperCardCleanCount() + collectionStats->getCardCleanCount()), stats->_cardTableStats->getConcurrentCleanedCards());
+		} else {
+			const char* cardCleaningReasonString = getCardCleaningReasonString(collectionStats->getCardCleaningReason());
+			writer->formatAndOutput(env, 1, "<card-cleaning reason=\"%s\" bytesTraced=\"%zu\" cardsCleaned=\"%zu\" />", cardCleaningReasonString, (collectionStats->getConHelperCardCleanCount() + collectionStats->getCardCleanCount()), stats->_cardTableStats->getConcurrentCleanedCards());
+		}
 	}
 	handleGCOPOuterStanzaEnd(env);
 	writer->flush(env);
